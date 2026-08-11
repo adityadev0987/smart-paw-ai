@@ -1,20 +1,17 @@
-import { useState } from "react"
-import { Menu, X } from "lucide-react"
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { Menu, X } from "lucide-react";
 
 function Navbar() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
     <nav className="border-b border-gray-200 bg-white">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
-        
         {/* Logo */}
-        <a
-          href="#"
-          className="text-lg font-bold text-orange-500"
-        >
+        <Link to="/" className="text-lg font-bold text-orange-500">
           Smart Paw AI
-        </a>
+        </Link>
 
         {/* Mobile Menu Button */}
         <button
@@ -33,72 +30,107 @@ function Navbar() {
 
         {/* Desktop Navigation */}
         <div className="hidden items-center gap-6 md:flex">
-          <a
-            href="#"
+          <Link
+            to="/"
             className="text-sm font-medium text-gray-700 hover:text-orange-500"
           >
             Home
-          </a>
+          </Link>
 
-          <a
-            href="#"
+          <Link
+            to="/health-check"
             className="text-sm font-medium text-gray-700 hover:text-orange-500"
           >
             Health Check
-          </a>
+          </Link>
 
-          <a
-            href="#"
+          <Link
+            to="/planner"
             className="text-sm font-medium text-gray-700 hover:text-orange-500"
           >
             Planner
-          </a>
+          </Link>
 
-          <button
-            type="button"
+          <Link
+            to="/breed-insights"
+            className="text-sm font-medium text-gray-700 hover:text-orange-500"
+          >
+            Breed Insights
+          </Link>
+
+          <Link
+            to="/vet-locator"
+            className="text-sm font-medium text-gray-700 hover:text-orange-500"
+          >
+            Vet Locator
+          </Link>
+
+          <Link
+            to="/login"
             className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600"
           >
             Login
-          </button>
+          </Link>
         </div>
       </div>
 
       {/* Mobile Navigation */}
       {isMenuOpen && (
-        <div className="border-t border-gray-100 px-4 py-4 md:hidden">
+        <div className="absolute right-0 top-16 z-50 w-[60%] max-w-sm rounded-2xl border border-gray-200 bg-white p-4 shadow-xl md:hidden">
+          {" "}
           <div className="flex flex-col gap-2">
-            <a
-              href="#"
+            <Link
+              to="/"
+              onClick={() => setIsMenuOpen(false)}
               className="rounded-lg px-3 py-3 text-sm font-medium text-gray-700 hover:bg-orange-50 hover:text-orange-500"
             >
               Home
-            </a>
+            </Link>
 
-            <a
-              href="#"
+            <Link
+              to="/health-check"
+              onClick={() => setIsMenuOpen(false)}
               className="rounded-lg px-3 py-3 text-sm font-medium text-gray-700 hover:bg-orange-50 hover:text-orange-500"
             >
               Health Check
-            </a>
+            </Link>
 
-            <a
-              href="#"
+            <Link
+              to="/planner"
+              onClick={() => setIsMenuOpen(false)}
               className="rounded-lg px-3 py-3 text-sm font-medium text-gray-700 hover:bg-orange-50 hover:text-orange-500"
             >
               Planner
-            </a>
+            </Link>
 
-            <button
-              type="button"
-              className="mt-2 w-full rounded-lg bg-orange-500 px-4 py-3 text-sm font-semibold text-white hover:bg-orange-600"
+            <Link
+              to="/breed-insights"
+              onClick={() => setIsMenuOpen(false)}
+              className="rounded-lg px-3 py-3 text-sm font-medium text-gray-700 hover:bg-orange-50 hover:text-orange-500"
+            >
+              Breed Insights
+            </Link>
+
+            <Link
+              to="/vet-locator"
+              onClick={() => setIsMenuOpen(false)}
+              className="rounded-lg px-3 py-3 text-sm font-medium text-gray-700 hover:bg-orange-50 hover:text-orange-500"
+            >
+              Vet Locator
+            </Link>
+
+            <Link
+              to="/login"
+              onClick={() => setIsMenuOpen(false)}
+              className="mt-2 w-full rounded-lg bg-orange-500 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-orange-600"
             >
               Login
-            </button>
+            </Link>
           </div>
         </div>
       )}
     </nav>
-  )
+  );
 }
 
-export default Navbar
+export default Navbar;

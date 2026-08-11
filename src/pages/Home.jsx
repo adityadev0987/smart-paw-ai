@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 function Home() {
   return (
     <>
@@ -18,12 +19,12 @@ function Home() {
             organized in one place.
           </p>
 
-          <button
-            type="button"
-            className="mt-6 w-full rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600"
+          <Link
+            to="/health-check"
+            className="mt-6 block w-full rounded-xl bg-orange-500 px-5 py-3.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600"
           >
             Get Started
-          </button>
+          </Link>
         </div>
       </section>
 
@@ -64,12 +65,12 @@ function Home() {
                 Get context-aware health insights based on your pet's
                 information.
               </p>
-              <button
-                type="button"
-                className="mt-4 text-sm font-semibold text-orange-500 hover:text-orange-600"
+              <Link
+                to="/health-check"
+                className="mt-4 block text-sm font-semibold text-orange-500 hover:text-orange-600"
               >
                 Check your pet's health →
-              </button>
+              </Link>
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
               <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
@@ -83,6 +84,13 @@ function Home() {
               <p className="mt-2 text-sm leading-6 text-gray-600">
                 Stay on top of vaccinations, medicines and important care tasks.
               </p>
+
+              <Link
+                to="/planner"
+                className="mt-4 block text-sm font-semibold text-orange-500 hover:text-orange-600"
+              >
+                Plan your pet's care →
+              </Link>
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
               <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
@@ -97,6 +105,12 @@ function Home() {
                 Find nearby veterinary care when your pet needs professional
                 attention.
               </p>
+              <Link
+                to="/vet-locator"
+                className="mt-4 block text-sm font-semibold text-orange-500 hover:text-orange-600"
+              >
+                Find a vet →
+              </Link>
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
               <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
@@ -111,6 +125,12 @@ function Home() {
                 Explore useful information about your pet's breed, care and
                 behavior.
               </p>
+              <Link
+                to="/breed-insights"
+                className="mt-4 block text-sm font-semibold text-orange-500 hover:text-orange-600"
+              >
+                Explore breed insights →
+              </Link>
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
               <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
@@ -125,6 +145,12 @@ function Home() {
                 Keep your pet's health records, vaccinations and important
                 history organized.
               </p>
+              <Link
+                to="/health-records"
+                className="mt-4 block text-sm font-semibold text-orange-500 hover:text-orange-600"
+              >
+                View health records →
+              </Link>
             </div>
           </div>
         </div>
