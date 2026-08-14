@@ -1,4 +1,21 @@
+import { useState } from "react";
+
 function AIHealthCheck() {
+  const [isStarted, setIsStarted] = useState(false);
+  const [symptom, setSymptom] = useState("");
+  const [result, setResult] = useState("");
+
+  const checkHealth = () => {
+    if (!symptom.trim()) {
+      setResult("Please describe your pet's symptoms first.");
+      return;
+    }
+
+    setResult(
+      "Based on the information provided, your pet may need attention. Please consult a qualified veterinarian for proper diagnosis and treatment.",
+    );
+  };
+
   return (
     <section className="px-4 py-8">
       <div className="mx-auto max-w-md">
@@ -14,26 +31,67 @@ function AIHealthCheck() {
           Get helpful health insights by telling us about your pet.
         </p>
 
-        <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Start a health check
-          </h2>
+        {!isStarted ? (
+          <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Start a health check
+            </h2>
 
-          <p className="mt-2 text-sm leading-6 text-gray-600">
-            Answer a few questions about your pet's symptoms and recent
-            behavior.
-          </p>
+            <p className="mt-2 text-sm leading-6 text-gray-600">
+              Answer a few questions about your pet's symptoms and recent
+              behavior.
+            </p>
 
-          <button
-            type="button"
-            className="mt-5 w-full rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-orange-600"
-          >
-            Start Health Check
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => setIsStarted(true)}
+              className="mt-5 w-full rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-orange-600"
+            >
+              Start Health Check
+            </button>
+          </div>
+        ) : (
+          <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Describe the symptoms
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-gray-600">
+              Tell us what you have noticed about your pet's health or
+              behavior.
+            </p>
+
+            <textarea
+              value={symptom}
+              onChange={(event) => {
+                setSymptom(event.target.value);
+                setResult("");
+              }}
+              placeholder="e.g. My dog is not eating and seems tired..."
+              rows="5"
+              className="mt-5 w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+            />
+
+            <button
+              type="button"
+              onClick={checkHealth}
+              className="mt-4 w-full rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-orange-600"
+            >
+              Check Health
+            </button>
+
+            {result && (
+              <div className="mt-5 rounded-xl border border-orange-100 bg-orange-50 p-4">
+                <p className="text-sm leading-6 text-gray-700">
+                  {result}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </section>
-  )
+  );
 }
 
-export default AIHealthCheck
+export default AIHealthCheck;
