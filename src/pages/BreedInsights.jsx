@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const breeds = [
   {
@@ -35,6 +35,30 @@ const breeds = [
 
 function BreedInsights() {
   const [selectedBreed, setSelectedBreed] = useState(breeds[0]);
+  const [isBreedOpen, setIsBreedOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target)
+      ) {
+        setIsBreedOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, []);
+
+  const handleBreedSelect = (breed) => {
+    setSelectedBreed(breed);
+    setIsBreedOpen(false);
+  };
 
   return (
     <section className="px-4 py-8">
@@ -53,31 +77,52 @@ function BreedInsights() {
         </p>
 
         <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <label
-            htmlFor="breed"
-            className="text-sm font-medium text-gray-700"
-          >
+          <label className="text-sm font-medium text-gray-700">
             Select a breed
           </label>
 
-          <select
-            id="breed"
-            value={selectedBreed.id}
-            onChange={(event) => {
-              const breed = breeds.find(
-                (item) => item.id === Number(event.target.value),
-              );
+          <div ref={dropdownRef} className="relative mt-2">
+            <button
+              type="button"
+              onClick={() => setIsBreedOpen(!isBreedOpen)}
+              className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left text-sm text-gray-900 outline-none transition hover:border-gray-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              aria-haspopup="listbox"
+              aria-expanded={isBreedOpen}
+            >
+              <span>{selectedBreed.name}</span>
 
-              setSelectedBreed(breed);
-            }}
-            className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-          >
-            {breeds.map((breed) => (
-              <option key={breed.id} value={breed.id}>
-                {breed.name}
-              </option>
-            ))}
-          </select>
+              <span
+                className={`text-xs text-gray-400 transition-transform duration-200 ${
+                  isBreedOpen ? "rotate-180" : ""
+                }`}
+              >
+                ▼
+              </span>
+            </button>
+
+            {isBreedOpen && (
+              <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg">
+                {breeds.map((breed) => (
+                  <button
+                    key={breed.id}
+                    type="button"
+                    onClick={() => handleBreedSelect(breed)}
+                    className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-sm transition ${
+                      selectedBreed.id === breed.id
+                        ? "bg-orange-50 font-semibold text-orange-500"
+                        : "text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span>{breed.name}</span>
+
+                    {selectedBreed.id === breed.id && (
+                      <span className="text-sm font-bold">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
