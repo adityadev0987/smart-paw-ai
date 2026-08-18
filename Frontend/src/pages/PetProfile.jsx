@@ -1,34 +1,41 @@
-import { useEffect, useRef, useState } from "react";
-import { useAppContext } from "../hooks/useAppContext";
+import { useEffect, useState } from "react";
+import { getPets, updatePet } from "../services/api";
 
 function PetProfile() {
-  const { currentPet, setCurrentPet } = useAppContext();
+  const [pet, setPet] = useState(null);
+  const [petData, setPetData] = useState(null);
 
   const [isEditing, setIsEditing] = useState(false);
-  const [petData, setPetData] = useState(currentPet);
-  const [isGenderOpen, setIsGenderOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const genderDropdownRef = useRef(null);
-
-  useEffect(() => {
-    setPetData(currentPet);
-  }, [currentPet]);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    const handleOutsideClick = (event) => {
-      if (
-        genderDropdownRef.current &&
-        !genderDropdownRef.current.contains(event.target)
-      ) {
-        setIsGenderOpen(false);
+    const loadPet = async () => {
+      try {
+        setIsLoading(true);
+        setError("");
+
+        const pets = await getPets();
+
+        if (pets.length === 0) {
+          setError("No pet found.");
+          return;
+        }
+
+        setPet(pets[0]);
+        setPetData(pets[0]);
+      } catch (error) {
+        console.error("Failed to load pet:", error);
+        setError("Failed to load pet information.");
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    document.addEventListener("mousedown", handleOutsideClick);
-
-    return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
-    };
+    loadPet();
   }, []);
 
   const handleChange = (event) => {
@@ -40,10 +47,54 @@ function PetProfile() {
     }));
   };
 
-  const handleDone = () => {
-    setCurrentPet(petData);
-    setIsEditing(false);
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      setError("");
+      setSuccess("");
+
+      const updatedPet = await updatePet(pet._id, {
+        name: petData.name,
+        breed: petData.breed,
+        age: Number(petData.age),
+        gender: petData.gender,
+      });
+
+      setPet(updatedPet);
+      setPetData(updatedPet);
+      setIsEditing(false);
+      setSuccess("Pet profile updated successfully.");
+    } catch (error) {
+      console.error("Failed to update pet:", error);
+      setError("Failed to update pet information.");
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <section className="px-4 py-8">
+        <div className="mx-auto max-w-2xl">
+          <p className="text-sm text-gray-500">
+            Loading pet profile...
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  if (!pet || !petData) {
+    return (
+      <section className="px-4 py-8">
+        <div className="mx-auto max-w-2xl">
+          <p className="text-sm font-medium text-red-500">
+            {error || "Pet profile could not be loaded."}
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="px-4 py-8">
@@ -72,20 +123,44 @@ function PetProfile() {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (isEditing) {
-                  handleDone();
-                } else {
+            {!isEditing ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSuccess("");
                   setIsEditing(true);
-                }
-              }}
-              className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600"
-            >
-              {isEditing ? "Done" : "Edit"}
-            </button>
+                }}
+                className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600"
+              >
+                Edit
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSaving ? "Saving..." : "Save"}
+              </button>
+            )}
           </div>
+
+          {success && (
+            <div className="mt-4 rounded-xl border border-green-100 bg-green-50 p-3">
+              <p className="text-sm font-medium text-green-600">
+                {success}
+              </p>
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3">
+              <p className="text-sm font-medium text-red-500">
+                {error}
+              </p>
+            </div>
+          )}
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <div className="rounded-xl bg-gray-50 p-4">
@@ -99,7 +174,7 @@ function PetProfile() {
                   name="name"
                   value={petData.name}
                   onChange={handleChange}
-                  className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                  className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500"
                 />
               ) : (
                 <p className="mt-1 text-sm font-semibold text-gray-900">
@@ -119,7 +194,7 @@ function PetProfile() {
                   name="breed"
                   value={petData.breed}
                   onChange={handleChange}
-                  className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                  className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500"
                 />
               ) : (
                 <p className="mt-1 text-sm font-semibold text-gray-900">
@@ -140,7 +215,7 @@ function PetProfile() {
                   min="0"
                   value={petData.age}
                   onChange={handleChange}
-                  className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                  className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500"
                 />
               ) : (
                 <p className="mt-1 text-sm font-semibold text-gray-900">
@@ -155,54 +230,15 @@ function PetProfile() {
               </p>
 
               {isEditing ? (
-                <div ref={genderDropdownRef} className="relative mt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsGenderOpen(!isGenderOpen)}
-                    className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm text-gray-900 outline-none transition hover:border-gray-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                    aria-haspopup="listbox"
-                    aria-expanded={isGenderOpen}
-                  >
-                    <span>{petData.gender}</span>
-
-                    <span
-                      className={`text-xs text-gray-400 transition-transform duration-200 ${
-                        isGenderOpen ? "rotate-180" : ""
-                      }`}
-                    >
-                      ▼
-                    </span>
-                  </button>
-
-                  {isGenderOpen && (
-                    <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg">
-                      {["Male", "Female"].map((gender) => (
-                        <button
-                          key={gender}
-                          type="button"
-                          onClick={() => {
-                            setPetData((currentPet) => ({
-                              ...currentPet,
-                              gender,
-                            }));
-                            setIsGenderOpen(false);
-                          }}
-                          className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition ${
-                            petData.gender === gender
-                              ? "bg-orange-50 font-semibold text-orange-500"
-                              : "text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          <span>{gender}</span>
-
-                          {petData.gender === gender && (
-                            <span className="font-bold">✓</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <select
+                  name="gender"
+                  value={petData.gender}
+                  onChange={handleChange}
+                  className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500"
+                >
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
               ) : (
                 <p className="mt-1 text-sm font-semibold text-gray-900">
                   {petData.gender}
