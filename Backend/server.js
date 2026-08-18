@@ -5,6 +5,7 @@ import { connectDB } from "./config/db.js";
 import petRoutes from "./routes/petRoutes.js";
 import healthRecordRoutes from "./routes/healthRecordRoutes.js";
 import taskRoutes from "./routes/taskRoutes.js";
+import aiRoutes from "./routes/aiRoutes.js";
 
 dotenv.config();
 
@@ -31,6 +32,7 @@ app.get("/api/health", (req, res) => {
 app.use("/api/pets", petRoutes);
 app.use("/api/health-records", healthRecordRoutes);
 app.use("/api/tasks", taskRoutes);
+app.use("/api/ai", aiRoutes);
 
 async function startServer() {
   await connectDB();
