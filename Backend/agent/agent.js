@@ -8,6 +8,7 @@ import { generateHealthInsight } from "../services/llmService.js";
 export async function runHealthAgent({
   petId,
   symptoms,
+  conversation = [],
 }) {
   if (!petId) {
     throw new Error("Pet ID is required.");
@@ -23,17 +24,22 @@ export async function runHealthAgent({
   // 2. Get previous health records from MongoDB
   const healthRecords = await getHealthRecords(petId);
 
-  // 3. Send complete health context to the LLM
-  const result = await generateHealthInsight({
+  // 3. Send complete context + conversation history to the LLM
+  const aiResponse = await generateHealthInsight({
     pet,
     healthRecords,
     symptoms: symptoms.trim(),
+    conversation,
   });
 
   return {
     pet,
     healthRecords,
     currentSymptoms: symptoms.trim(),
-    result,
+    status: aiResponse.status,
+    question: aiResponse.question,
+    assessment: aiResponse.assessment,
+    nextSteps: aiResponse.nextSteps,
+    urgent: aiResponse.urgent,
   };
 }
