@@ -8,12 +8,18 @@ import {
   deletePet,
 } from "../controllers/petController.js";
 
+import { protect } from "../middleware/authMiddleware.js";
+
 const router = express.Router();
 
-router.post("/", createPet);
-router.get("/", getPets);
-router.get("/:id", getPetById);
-router.put("/:id", updatePet);
-router.delete("/:id", deletePet);
+router.post("/", protect, createPet);
+
+router.get("/", protect, getPets);
+
+router.get("/:id", protect, getPetById);
+
+router.put("/:id", protect, updatePet);
+
+router.delete("/:id", protect, deletePet);
 
 export default router;

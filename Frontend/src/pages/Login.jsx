@@ -1,12 +1,19 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { loginUser } from "../services/auth";
+import { useAppContext } from "../hooks/useAppContext";
 
 function Login() {
+  const navigate = useNavigate();
+  const { login } = useAppContext();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
 
-  const handleLogin = (event) => {
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async (event) => {
     event.preventDefault();
 
     if (!email.trim() || !password.trim()) {
@@ -14,8 +21,23 @@ function Login() {
       return;
     }
 
-    setError("");
-    alert("Login successful!");
+    try {
+      setIsLoading(true);
+      setError("");
+
+      const data = await loginUser({
+        email: email.trim(),
+        password,
+      });
+
+      login(data.user, data.token);
+
+      navigate("/");
+    } catch (error) {
+      setError(error.message || "Failed to login.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -56,7 +78,8 @@ function Login() {
                 setError("");
               }}
               placeholder="you@example.com"
-              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              disabled={isLoading}
+              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-gray-50"
             />
           </div>
 
@@ -77,7 +100,8 @@ function Login() {
                 setError("");
               }}
               placeholder="Enter your password"
-              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              disabled={isLoading}
+              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-gray-50"
             />
           </div>
 
@@ -89,9 +113,10 @@ function Login() {
 
           <button
             type="submit"
-            className="mt-5 w-full rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-orange-600"
+            disabled={isLoading}
+            className="mt-5 w-full rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Login
+            {isLoading ? "Signing in..." : "Login"}
           </button>
 
           <p className="mt-5 text-center text-sm text-gray-600">

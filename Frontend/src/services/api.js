@@ -1,7 +1,21 @@
 const API_BASE_URL = "http://localhost:5000/api";
 
+function getAuthHeaders() {
+  const token = localStorage.getItem("smartPawToken");
+
+  return token
+    ? {
+        Authorization: `Bearer ${token}`,
+      }
+    : {};
+}
+
 export async function getPets() {
-  const response = await fetch(`${API_BASE_URL}/pets`);
+  const response = await fetch(`${API_BASE_URL}/pets`, {
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
 
   const result = await response.json();
 
@@ -13,7 +27,11 @@ export async function getPets() {
 }
 
 export async function getPetById(id) {
-  const response = await fetch(`${API_BASE_URL}/pets/${id}`);
+  const response = await fetch(`${API_BASE_URL}/pets/${id}`, {
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
 
   const result = await response.json();
 
@@ -29,6 +47,7 @@ export async function updatePet(id, petData) {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
+      ...getAuthHeaders(),
     },
     body: JSON.stringify(petData),
   });
@@ -47,6 +66,7 @@ export async function createPet(petData) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...getAuthHeaders(),
     },
     body: JSON.stringify(petData),
   });
@@ -63,6 +83,9 @@ export async function createPet(petData) {
 export async function deletePet(id) {
   const response = await fetch(`${API_BASE_URL}/pets/${id}`, {
     method: "DELETE",
+    headers: {
+      ...getAuthHeaders(),
+    },
   });
 
   const result = await response.json();
@@ -77,6 +100,11 @@ export async function deletePet(id) {
 export async function getHealthRecords(petId) {
   const response = await fetch(
     `${API_BASE_URL}/health-records?petId=${petId}`,
+    {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    },
   );
 
   const result = await response.json();
@@ -97,6 +125,7 @@ export async function createHealthRecord(recordData) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(recordData),
     },
@@ -120,6 +149,7 @@ export async function updateHealthRecord(id, recordData) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(recordData),
     },
@@ -141,6 +171,9 @@ export async function deleteHealthRecord(id) {
     `${API_BASE_URL}/health-records/${id}`,
     {
       method: "DELETE",
+      headers: {
+        ...getAuthHeaders(),
+      },
     },
   );
 
@@ -154,9 +187,15 @@ export async function deleteHealthRecord(id) {
 
   return result;
 }
+
 export async function getTasks(petId) {
   const response = await fetch(
     `${API_BASE_URL}/tasks?petId=${petId}`,
+    {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    },
   );
 
   const result = await response.json();
@@ -177,6 +216,7 @@ export async function createTask(taskData) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(taskData),
     },
@@ -200,10 +240,10 @@ export async function updateTask(id, taskData) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(taskData),
-    },
-  );
+  });
 
   const result = await response.json();
 
@@ -221,6 +261,9 @@ export async function deleteTask(id) {
     `${API_BASE_URL}/tasks/${id}`,
     {
       method: "DELETE",
+      headers: {
+        ...getAuthHeaders(),
+      },
     },
   );
 

@@ -1,18 +1,28 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { registerUser } from "../services/auth";
 
 function Register() {
+  const navigate = useNavigate();
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
 
-  const handleRegister = (event) => {
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleRegister = async (event) => {
     event.preventDefault();
 
     if (!name.trim() || !email.trim() || !password.trim()) {
       setError("Please fill in all required fields.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long.");
       return;
     }
 
@@ -21,8 +31,22 @@ function Register() {
       return;
     }
 
-    setError("");
-    alert("Account created successfully!");
+    try {
+      setIsLoading(true);
+      setError("");
+
+      await registerUser({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+      });
+
+      navigate("/login");
+    } catch (error) {
+      setError(error.message || "Failed to create account.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -63,7 +87,8 @@ function Register() {
                 setError("");
               }}
               placeholder="Your name"
-              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              disabled={isLoading}
+              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-gray-50"
             />
           </div>
 
@@ -84,7 +109,8 @@ function Register() {
                 setError("");
               }}
               placeholder="you@example.com"
-              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              disabled={isLoading}
+              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-gray-50"
             />
           </div>
 
@@ -105,7 +131,8 @@ function Register() {
                 setError("");
               }}
               placeholder="Create a password"
-              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              disabled={isLoading}
+              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-gray-50"
             />
           </div>
 
@@ -126,7 +153,8 @@ function Register() {
                 setError("");
               }}
               placeholder="Confirm your password"
-              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              disabled={isLoading}
+              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-gray-50"
             />
           </div>
 
@@ -138,9 +166,10 @@ function Register() {
 
           <button
             type="submit"
-            className="mt-5 w-full rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-orange-600"
+            disabled={isLoading}
+            className="mt-5 w-full rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Create Account
+            {isLoading ? "Creating account..." : "Create Account"}
           </button>
 
           <p className="mt-5 text-center text-sm text-gray-600">

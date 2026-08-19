@@ -4,6 +4,13 @@ export const createPet = async (req, res) => {
   try {
     const { name, breed, age, gender } = req.body;
 
+    if (!req.user?.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required.",
+      });
+    }
+
     if (!name || !breed || age === undefined || !gender) {
       return res.status(400).json({
         success: false,
@@ -12,6 +19,7 @@ export const createPet = async (req, res) => {
     }
 
     const pet = await Pet.create({
+      userId: req.user.id,
       name,
       breed,
       age,
@@ -35,7 +43,16 @@ export const createPet = async (req, res) => {
 
 export const getPets = async (req, res) => {
   try {
-    const pets = await Pet.find().sort({ createdAt: -1 });
+    if (!req.user?.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required.",
+      });
+    }
+
+    const pets = await Pet.find({
+      userId: req.user.id,
+    }).sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -54,7 +71,17 @@ export const getPets = async (req, res) => {
 
 export const getPetById = async (req, res) => {
   try {
-    const pet = await Pet.findById(req.params.id);
+    if (!req.user?.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required.",
+      });
+    }
+
+    const pet = await Pet.findOne({
+      _id: req.params.id,
+      userId: req.user.id,
+    });
 
     if (!pet) {
       return res.status(404).json({
@@ -79,10 +106,20 @@ export const getPetById = async (req, res) => {
 
 export const updatePet = async (req, res) => {
   try {
+    if (!req.user?.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required.",
+      });
+    }
+
     const { name, breed, age, gender } = req.body;
 
-    const pet = await Pet.findByIdAndUpdate(
-      req.params.id,
+    const pet = await Pet.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        userId: req.user.id,
+      },
       {
         name,
         breed,
@@ -119,7 +156,17 @@ export const updatePet = async (req, res) => {
 
 export const deletePet = async (req, res) => {
   try {
-    const pet = await Pet.findByIdAndDelete(req.params.id);
+    if (!req.user?.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required.",
+      });
+    }
+
+    const pet = await Pet.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.user.id,
+    });
 
     if (!pet) {
       return res.status(404).json({

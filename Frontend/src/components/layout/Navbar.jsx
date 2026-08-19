@@ -1,13 +1,23 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Menu, X } from "lucide-react";
+import { useAppContext } from "../../hooks/useAppContext";
 
 function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
+  const navigate = useNavigate();
+  const { isAuthenticated, currentUser, logout } = useAppContext();
+
   const closeMenu = () => {
     setIsMenuOpen(false);
+  };
+
+  const handleLogout = () => {
+    closeMenu();
+    logout();
+    navigate("/login");
   };
 
   useEffect(() => {
@@ -57,48 +67,85 @@ function Navbar() {
         </button>
 
         <div className="hidden items-center gap-5 md:flex">
-          <Link to="/" className="text-sm font-medium text-gray-700 hover:text-orange-500">
+          <Link
+            to="/"
+            className="text-sm font-medium text-gray-700 hover:text-orange-500"
+          >
             Home
           </Link>
 
-          <Link to="/dashboard" className="text-sm font-medium text-gray-700 hover:text-orange-500">
+          <Link
+            to="/dashboard"
+            className="text-sm font-medium text-gray-700 hover:text-orange-500"
+          >
             Dashboard
           </Link>
 
-          <Link to="/health-check" className="text-sm font-medium text-gray-700 hover:text-orange-500">
+          <Link
+            to="/health-check"
+            className="text-sm font-medium text-gray-700 hover:text-orange-500"
+          >
             Health Check
           </Link>
 
-          <Link to="/planner" className="text-sm font-medium text-gray-700 hover:text-orange-500">
+          <Link
+            to="/planner"
+            className="text-sm font-medium text-gray-700 hover:text-orange-500"
+          >
             Planner
           </Link>
 
-          <Link to="/pet-profile" className="text-sm font-medium text-gray-700 hover:text-orange-500">
+          <Link
+            to="/pet-profile"
+            className="text-sm font-medium text-gray-700 hover:text-orange-500"
+          >
             Pet Profile
           </Link>
 
-          <Link to="/health-records" className="text-sm font-medium text-gray-700 hover:text-orange-500">
+          <Link
+            to="/health-records"
+            className="text-sm font-medium text-gray-700 hover:text-orange-500"
+          >
             Health Records
           </Link>
 
-          <Link to="/recommendation" className="text-sm font-medium text-gray-700 hover:text-orange-500">
+          <Link
+            to="/recommendation"
+            className="text-sm font-medium text-gray-700 hover:text-orange-500"
+          >
             Recommendations
           </Link>
 
-          <Link to="/breed-insights" className="text-sm font-medium text-gray-700 hover:text-orange-500">
+          <Link
+            to="/breed-insights"
+            className="text-sm font-medium text-gray-700 hover:text-orange-500"
+          >
             Breed Insights
           </Link>
 
-          <Link to="/vet-locator" className="text-sm font-medium text-gray-700 hover:text-orange-500">
+          <Link
+            to="/vet-locator"
+            className="text-sm font-medium text-gray-700 hover:text-orange-500"
+          >
             Vet Locator
           </Link>
 
-          <Link
-            to="/login"
-            className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600"
-          >
-            Login
-          </Link>
+          {isAuthenticated ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600"
+            >
+              Logout
+            </button>
+          ) : (
+            <Link
+              to="/login"
+              className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600"
+            >
+              Login
+            </Link>
+          )}
         </div>
       </div>
 
@@ -183,13 +230,31 @@ function Navbar() {
                 Vet Locator
               </Link>
 
-              <Link
-                to="/login"
-                onClick={closeMenu}
-                className="mt-2 w-full rounded-lg bg-orange-500 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-orange-600"
-              >
-                Login
-              </Link>
+              {isAuthenticated ? (
+                <div className="mt-2">
+                  {currentUser?.name && (
+                    <p className="mb-2 px-3 text-xs text-gray-500">
+                      Signed in as {currentUser.name}
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full rounded-lg bg-orange-500 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-orange-600"
+                  >
+                    Logout
+                  </button>
+                </div>
+              ) : (
+                <Link
+                  to="/login"
+                  onClick={closeMenu}
+                  className="mt-2 w-full rounded-lg bg-orange-500 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-orange-600"
+                >
+                  Login
+                </Link>
+              )}
             </div>
           </div>
         </>
