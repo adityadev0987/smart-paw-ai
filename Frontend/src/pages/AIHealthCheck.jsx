@@ -4,7 +4,11 @@ import { useAppContext } from "../hooks/useAppContext";
 const API_BASE_URL = "http://localhost:5000";
 
 function AIHealthCheck() {
-  const { currentPet } = useAppContext();
+  const {
+    pets = [],
+    currentPet,
+    setCurrentPet,
+  } = useAppContext();
 
   const [isStarted, setIsStarted] = useState(false);
   const [symptom, setSymptom] = useState("");
@@ -19,6 +23,30 @@ function AIHealthCheck() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [urgent, setUrgent] = useState(false);
+
+  const handlePetChange = (event) => {
+    const selectedPet = pets.find(
+      (pet) => pet._id === event.target.value,
+    );
+
+    if (!selectedPet) {
+      return;
+    }
+
+    setCurrentPet(selectedPet);
+
+    setSymptom("");
+    setAnswer("");
+    setConversation([]);
+    setQuestion("");
+    setAssessment("");
+    setNextSteps([]);
+    setIsFinished(false);
+    setIsLoading(false);
+    setError("");
+    setUrgent(false);
+    setIsStarted(false);
+  };
 
   const runHealthCheck = async ({
     currentSymptoms,
@@ -39,6 +67,9 @@ function AIHealthCheck() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem(
+              "smartPawToken",
+            )}`,
           },
           body: JSON.stringify({
             petId: currentPet._id,
@@ -67,7 +98,11 @@ function AIHealthCheck() {
       } else {
         setQuestion("");
         setAssessment(result.assessment || "");
-        setNextSteps(Array.isArray(result.nextSteps) ? result.nextSteps : []);
+        setNextSteps(
+          Array.isArray(result.nextSteps)
+            ? result.nextSteps
+            : [],
+        );
         setIsFinished(true);
         setUrgent(Boolean(result.urgent));
       }
@@ -75,7 +110,8 @@ function AIHealthCheck() {
       console.error("Health check failed:", error);
 
       setError(
-        error.message || "Something went wrong while checking your pet.",
+        error.message ||
+          "Something went wrong while checking your pet.",
       );
     } finally {
       setIsLoading(false);
@@ -83,6 +119,11 @@ function AIHealthCheck() {
   };
 
   const startHealthCheck = async () => {
+    if (!currentPet?._id) {
+      setError("Please select a pet first.");
+      return;
+    }
+
     if (!symptom.trim()) {
       setError("Please describe your pet's symptoms first.");
       return;
@@ -184,9 +225,9 @@ function AIHealthCheck() {
           </h1>
 
           <p className="mt-3 max-w-xl text-base leading-7 text-gray-600">
-            Describe what you have noticed about your pet and Smart Paw AI
-            will ask relevant follow-up questions before providing a cautious
-            health assessment.
+            Describe what you have noticed about your pet and
+            Smart Paw AI will ask relevant follow-up questions
+            before providing a cautious health assessment.
           </p>
         </div>
 
@@ -209,13 +250,41 @@ function AIHealthCheck() {
             </div>
 
             <div className="p-6">
+              {/* Pet selector */}
+              {pets.length > 1 && (
+                <div className="mb-6">
+                  <label
+                    htmlFor="healthCheckPet"
+                    className="text-sm font-semibold text-gray-700"
+                  >
+                    Select pet
+                  </label>
+
+                  <select
+                    id="healthCheckPet"
+                    value={currentPet._id}
+                    onChange={handlePetChange}
+                    className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-100"
+                  >
+                    {pets.map((pet) => (
+                      <option
+                        key={pet._id}
+                        value={pet._id}
+                      >
+                        {pet.name} • {pet.breed}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <h2 className="text-lg font-semibold text-gray-900">
                 What have you noticed?
               </h2>
 
               <p className="mt-2 text-sm leading-6 text-gray-600">
-                Describe the symptoms, behavior changes, or anything unusual
-                you have noticed.
+                Describe the symptoms, behavior changes, or
+                anything unusual you have noticed.
               </p>
 
               <textarea
@@ -231,7 +300,9 @@ function AIHealthCheck() {
 
               {error && (
                 <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3">
-                  <p className="text-sm leading-5 text-red-600">{error}</p>
+                  <p className="text-sm leading-5 text-red-600">
+                    {error}
+                  </p>
                 </div>
               )}
 
@@ -241,12 +312,14 @@ function AIHealthCheck() {
                 disabled={isLoading}
                 className="mt-5 w-full rounded-2xl bg-orange-500 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isLoading ? "Starting Health Check..." : "Start Health Check"}
+                {isLoading
+                  ? "Starting Health Check..."
+                  : "Start Health Check"}
               </button>
 
               <p className="mt-3 text-center text-xs leading-5 text-gray-400">
-                Smart Paw AI provides informational guidance and does not
-                replace professional veterinary care.
+                Smart Paw AI provides informational guidance and
+                does not replace professional veterinary care.
               </p>
             </div>
           </div>
@@ -302,10 +375,14 @@ function AIHealthCheck() {
                   <div className="max-w-[82%]">
                     <p
                       className={`mb-1 text-[11px] font-medium text-gray-400 ${
-                        message.role === "user" ? "text-right" : "text-left"
+                        message.role === "user"
+                          ? "text-right"
+                          : "text-left"
                       }`}
                     >
-                      {message.role === "assistant" ? "Smart Paw AI" : "You"}
+                      {message.role === "assistant"
+                        ? "Smart Paw AI"
+                        : "You"}
                     </p>
 
                     <div
@@ -359,7 +436,9 @@ function AIHealthCheck() {
               <div className="border-t border-gray-100 bg-white p-4">
                 {error && (
                   <div className="mb-3 rounded-xl border border-red-100 bg-red-50 p-3">
-                    <p className="text-sm leading-5 text-red-600">{error}</p>
+                    <p className="text-sm leading-5 text-red-600">
+                      {error}
+                    </p>
                   </div>
                 )}
 
@@ -371,7 +450,10 @@ function AIHealthCheck() {
                       setError("");
                     }}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter" && !event.shiftKey) {
+                      if (
+                        event.key === "Enter" &&
+                        !event.shiftKey
+                      ) {
                         event.preventDefault();
 
                         if (!isLoading && answer.trim()) {
@@ -392,7 +474,11 @@ function AIHealthCheck() {
                   <button
                     type="button"
                     onClick={submitAnswer}
-                    disabled={isLoading || !answer.trim() || !question}
+                    disabled={
+                      isLoading ||
+                      !answer.trim() ||
+                      !question
+                    }
                     aria-label="Send answer"
                     className="self-end rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -419,7 +505,9 @@ function AIHealthCheck() {
                   <div className="flex items-center justify-between gap-3">
                     <p
                       className={`text-xs font-semibold uppercase tracking-wider ${
-                        urgent ? "text-red-600" : "text-orange-500"
+                        urgent
+                          ? "text-red-600"
+                          : "text-orange-500"
                       }`}
                     >
                       AI Health Assessment
@@ -459,15 +547,17 @@ function AIHealthCheck() {
                   {urgent && (
                     <div className="mt-5 rounded-xl border border-red-200 bg-white p-3">
                       <p className="text-sm font-semibold text-red-600">
-                        Contact a qualified veterinarian promptly if you are
-                        concerned about your pet's condition.
+                        Contact a qualified veterinarian promptly
+                        if you are concerned about your pet's
+                        condition.
                       </p>
                     </div>
                   )}
 
                   <p className="mt-5 border-t border-gray-200/70 pt-3 text-xs leading-5 text-gray-500">
-                    This is informational guidance, not a medical diagnosis.
-                    Consult a qualified veterinarian for professional advice.
+                    This is informational guidance, not a medical
+                    diagnosis. Consult a qualified veterinarian for
+                    professional advice.
                   </p>
                 </div>
 

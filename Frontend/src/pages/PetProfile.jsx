@@ -1,96 +1,184 @@
 import { useEffect, useState } from "react";
-import { getPets, updatePet } from "../services/api";
+import { useAppContext } from "../hooks/useAppContext";
+import { updatePet } from "../services/api";
 
 function PetProfile() {
-  const [pet, setPet] = useState(null);
+  const {
+    pets = [],
+    currentPet,
+    setCurrentPet,
+    isPetLoading,
+  } = useAppContext();
+
   const [petData, setPetData] = useState(null);
 
   const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    const loadPet = async () => {
-      try {
-        setIsLoading(true);
-        setError("");
+    if (!currentPet) {
+      setPetData(null);
+      return;
+    }
 
-        const pets = await getPets();
+    setPetData({
+      ...currentPet,
+    });
 
-        if (pets.length === 0) {
-          setError("No pet found.");
-          return;
-        }
+    setError("");
+    setSuccess("");
+    setIsEditing(false);
+  }, [currentPet]);
 
-        setPet(pets[0]);
-        setPetData(pets[0]);
-      } catch (error) {
-        console.error("Failed to load pet:", error);
-        setError("Failed to load pet information.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const handlePetChange = (event) => {
+    const selectedPet = pets.find(
+      (pet) => pet._id === event.target.value,
+    );
 
-    loadPet();
-  }, []);
+    if (!selectedPet) {
+      return;
+    }
+
+    setCurrentPet(selectedPet);
+    setError("");
+    setSuccess("");
+  };
 
   const handleChange = (event) => {
     const { name, value } = event.target;
 
-    setPetData((currentPet) => ({
-      ...currentPet,
+    setPetData((currentPetData) => ({
+      ...currentPetData,
       [name]: value,
     }));
+
+    setError("");
+    setSuccess("");
   };
 
   const handleSave = async () => {
+    if (!currentPet?._id || !petData) {
+      setError("Pet information is not available.");
+      return;
+    }
+
+    if (!petData.name?.trim()) {
+      setError("Pet name is required.");
+      return;
+    }
+
+    if (!petData.breed?.trim()) {
+      setError("Pet breed is required.");
+      return;
+    }
+
+    if (
+      petData.age === "" ||
+      Number(petData.age) < 0
+    ) {
+      setError("Please enter a valid age.");
+      return;
+    }
+
     try {
       setIsSaving(true);
       setError("");
       setSuccess("");
 
-      const updatedPet = await updatePet(pet._id, {
-        name: petData.name,
-        breed: petData.breed,
-        age: Number(petData.age),
-        gender: petData.gender,
-      });
+      const updatedPet = await updatePet(
+        currentPet._id,
+        {
+          name: petData.name.trim(),
+          breed: petData.breed.trim(),
+          age: Number(petData.age),
+          gender: petData.gender,
+        },
+      );
 
-      setPet(updatedPet);
-      setPetData(updatedPet);
+      const normalizedPet = {
+        ...updatedPet,
+        id: updatedPet._id,
+      };
+
+      setCurrentPet(normalizedPet);
+      setPetData(normalizedPet);
+
       setIsEditing(false);
-      setSuccess("Pet profile updated successfully.");
+      setSuccess(
+        "Pet profile updated successfully.",
+      );
     } catch (error) {
-      console.error("Failed to update pet:", error);
-      setError("Failed to update pet information.");
+      console.error(
+        "Failed to update pet:",
+        error,
+      );
+
+      setError(
+        error.message ||
+          "Failed to update pet information.",
+      );
     } finally {
       setIsSaving(false);
     }
   };
 
-  if (isLoading) {
+  const handleCancel = () => {
+    if (!currentPet) {
+      return;
+    }
+
+    setPetData({
+      ...currentPet,
+    });
+
+    setIsEditing(false);
+    setError("");
+    setSuccess("");
+  };
+
+  if (isPetLoading) {
     return (
       <section className="px-4 py-8">
         <div className="mx-auto max-w-2xl">
-          <p className="text-sm text-gray-500">
-            Loading pet profile...
+          <p className="text-sm font-semibold uppercase tracking-wider text-orange-500">
+            Pet Information
           </p>
+
+          <h1 className="mt-2 text-3xl font-bold text-gray-900">
+            Pet Profile
+          </h1>
+
+          <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm">
+            <p className="text-sm text-gray-500">
+              Loading pet profile...
+            </p>
+          </div>
         </div>
       </section>
     );
   }
 
-  if (!pet || !petData) {
+  if (!currentPet || !petData) {
     return (
       <section className="px-4 py-8">
         <div className="mx-auto max-w-2xl">
-          <p className="text-sm font-medium text-red-500">
-            {error || "Pet profile could not be loaded."}
+          <p className="text-sm font-semibold uppercase tracking-wider text-orange-500">
+            Pet Information
           </p>
+
+          <h1 className="mt-2 text-3xl font-bold text-gray-900">
+            Pet Profile
+          </h1>
+
+          <div className="mt-6 rounded-2xl border border-red-100 bg-red-50 p-5">
+            <p className="text-sm font-medium text-red-600">
+              {error ||
+                "No pet profile is available."}
+            </p>
+          </div>
         </div>
       </section>
     );
@@ -111,10 +199,48 @@ function PetProfile() {
           View and manage your pet's basic information.
         </p>
 
+        {/* Pet Selector */}
+        {pets.length > 1 && (
+          <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <label
+              htmlFor="profilePet"
+              className="text-sm font-semibold text-gray-700"
+            >
+              Select pet
+            </label>
+
+            <select
+              id="profilePet"
+              value={currentPet._id}
+              onChange={handlePetChange}
+              disabled={isEditing || isSaving}
+              className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:cursor-not-allowed disabled:bg-gray-50"
+            >
+              {pets.map((pet) => (
+                <option
+                  key={pet._id}
+                  value={pet._id}
+                >
+                  {pet.name} • {pet.breed}
+                </option>
+              ))}
+            </select>
+
+            <p className="mt-2 text-xs text-gray-500">
+              Select the pet whose profile you want to manage.
+            </p>
+          </div>
+        )}
+
+        {/* Profile Card */}
         <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">
+              <p className="text-xs font-semibold uppercase tracking-wider text-orange-500">
+                Current Pet
+              </p>
+
+              <h2 className="mt-1 text-xl font-semibold text-gray-900">
                 {petData.name}
               </h2>
 
@@ -128,6 +254,7 @@ function PetProfile() {
                 type="button"
                 onClick={() => {
                   setSuccess("");
+                  setError("");
                   setIsEditing(true);
                 }}
                 className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600"
@@ -135,14 +262,27 @@ function PetProfile() {
                 Edit
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isSaving}
-                className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSaving ? "Saving..." : "Save"}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  disabled={isSaving}
+                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSaving
+                    ? "Saving..."
+                    : "Save"}
+                </button>
+              </div>
             )}
           </div>
 
@@ -163,6 +303,7 @@ function PetProfile() {
           )}
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            {/* Name */}
             <div className="rounded-xl bg-gray-50 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                 Name
@@ -174,7 +315,7 @@ function PetProfile() {
                   name="name"
                   value={petData.name}
                   onChange={handleChange}
-                  className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500"
+                  className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                 />
               ) : (
                 <p className="mt-1 text-sm font-semibold text-gray-900">
@@ -183,6 +324,7 @@ function PetProfile() {
               )}
             </div>
 
+            {/* Breed */}
             <div className="rounded-xl bg-gray-50 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                 Breed
@@ -194,7 +336,7 @@ function PetProfile() {
                   name="breed"
                   value={petData.breed}
                   onChange={handleChange}
-                  className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500"
+                  className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                 />
               ) : (
                 <p className="mt-1 text-sm font-semibold text-gray-900">
@@ -203,6 +345,7 @@ function PetProfile() {
               )}
             </div>
 
+            {/* Age */}
             <div className="rounded-xl bg-gray-50 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                 Age
@@ -215,7 +358,7 @@ function PetProfile() {
                   min="0"
                   value={petData.age}
                   onChange={handleChange}
-                  className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500"
+                  className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                 />
               ) : (
                 <p className="mt-1 text-sm font-semibold text-gray-900">
@@ -224,6 +367,7 @@ function PetProfile() {
               )}
             </div>
 
+            {/* Gender */}
             <div className="rounded-xl bg-gray-50 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                 Gender
@@ -234,10 +378,15 @@ function PetProfile() {
                   name="gender"
                   value={petData.gender}
                   onChange={handleChange}
-                  className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500"
+                  className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                 >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
+                  <option value="Male">
+                    Male
+                  </option>
+
+                  <option value="Female">
+                    Female
+                  </option>
                 </select>
               ) : (
                 <p className="mt-1 text-sm font-semibold text-gray-900">

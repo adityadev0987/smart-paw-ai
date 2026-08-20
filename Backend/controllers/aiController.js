@@ -1,3 +1,4 @@
+import Pet from "../models/Pet.js";
 import { runHealthAgent } from "../agent/agent.js";
 
 export const healthCheck = async (req, res) => {
@@ -7,6 +8,13 @@ export const healthCheck = async (req, res) => {
       symptoms,
       conversation = [],
     } = req.body;
+
+    if (!req.user?.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required.",
+      });
+    }
 
     if (!petId || !symptoms?.trim()) {
       return res.status(400).json({
@@ -22,9 +30,21 @@ export const healthCheck = async (req, res) => {
       });
     }
 
+    const pet = await Pet.findOne({
+      _id: petId,
+      userId: req.user.id,
+    });
+
+    if (!pet) {
+      return res.status(404).json({
+        success: false,
+        message: "Pet not found.",
+      });
+    }
+
     const result = await runHealthAgent({
       petId,
-      symptoms,
+      symptoms: symptoms.trim(),
       conversation,
     });
 

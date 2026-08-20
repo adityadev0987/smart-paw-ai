@@ -8,6 +8,7 @@ import healthRecordRoutes from "./routes/healthRecordRoutes.js";
 import taskRoutes from "./routes/taskRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import vetRoutes from "./routes/vetRoutes.js";
 import { protect } from "./middleware/authMiddleware.js";
 
 dotenv.config();
@@ -46,12 +47,15 @@ app.use("/api/pets", petRoutes);
 app.use("/api/health-records", healthRecordRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/vets", vetRoutes);
 
 async function startServer() {
   await connectDB();
 
   app.listen(PORT, () => {
-    console.log(`Smart Paw AI backend running on port ${PORT}`);
+    console.log(
+      `Smart Paw AI backend running on port ${PORT}`,
+    );
   });
 }
 

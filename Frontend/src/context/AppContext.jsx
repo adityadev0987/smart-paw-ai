@@ -4,6 +4,7 @@ import { getPets } from "../services/api";
 export const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
+  const [pets, setPets] = useState([]);
   const [currentPet, setCurrentPet] = useState(null);
   const [isPetLoading, setIsPetLoading] = useState(true);
 
@@ -27,8 +28,9 @@ export function AppProvider({ children }) {
   });
 
   useEffect(() => {
-    const loadPet = async () => {
+    const loadPets = async () => {
       if (!isAuthenticated) {
+        setPets([]);
         setCurrentPet(null);
         setIsPetLoading(false);
         return;
@@ -39,25 +41,28 @@ export function AppProvider({ children }) {
 
         const data = await getPets();
 
-        if (data.length > 0) {
-          const mongoPet = data[0];
+        if (Array.isArray(data) && data.length > 0) {
+          const formattedPets = data.map((pet) => ({
+            ...pet,
+            id: pet._id,
+          }));
 
-          setCurrentPet({
-            ...mongoPet,
-            id: mongoPet._id,
-          });
+          setPets(formattedPets);
+          setCurrentPet(formattedPets[0]);
         } else {
+          setPets([]);
           setCurrentPet(null);
         }
       } catch (error) {
-        console.error("Failed to load pet:", error);
+        console.error("Failed to load pets:", error);
+        setPets([]);
         setCurrentPet(null);
       } finally {
         setIsPetLoading(false);
       }
     };
 
-    loadPet();
+    loadPets();
   }, [isAuthenticated]);
 
   const login = (user, token) => {
@@ -74,6 +79,7 @@ export function AppProvider({ children }) {
 
     setCurrentUser(null);
     setIsAuthenticated(false);
+    setPets([]);
     setCurrentPet(null);
   };
 
@@ -84,6 +90,7 @@ export function AppProvider({ children }) {
         isAuthenticated,
         login,
         logout,
+        pets,
         currentPet,
         setCurrentPet,
         isPetLoading,
