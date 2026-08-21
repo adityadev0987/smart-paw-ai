@@ -153,21 +153,41 @@ function AIHealthCheck() {
       return;
     }
 
+    const currentQuestion = question.trim();
+    const currentAnswer = answer.trim();
+
+    if (!currentQuestion) {
+      setError("Please wait for Smart Paw AI to ask a question.");
+      return;
+    }
+
     const updatedConversation = [
       ...conversation,
       {
         role: "assistant",
-        content: question,
+        content: currentQuestion,
       },
       {
         role: "user",
-        content: answer.trim(),
+        content: currentAnswer,
       },
     ];
 
     setConversation(updatedConversation);
+
     setAnswer("");
+
+    // Important:
+    // The current question has now been submitted into the conversation
+    // history, so remove it from the active-question area immediately.
+    // This prevents the same question from appearing twice while AI
+    // generates the next response.
+    setQuestion("");
+
     setError("");
+    setAssessment("");
+    setNextSteps([]);
+    setIsFinished(false);
 
     await runHealthCheck({
       currentSymptoms: symptom.trim(),
@@ -456,7 +476,10 @@ function AIHealthCheck() {
                       ) {
                         event.preventDefault();
 
-                        if (!isLoading && answer.trim()) {
+                        if (
+                          !isLoading &&
+                          answer.trim()
+                        ) {
                           submitAnswer();
                         }
                       }
