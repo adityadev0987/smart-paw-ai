@@ -1,4 +1,20 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import {
+  AlertCircle,
+  ArrowUpRight,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  Globe,
+  LocateFixed,
+  MapPin,
+  Navigation,
+  Phone,
+  Search,
+  ShieldCheck,
+  Stethoscope,
+  X,
+} from "lucide-react";
 
 const API_BASE_URL = "http://localhost:5000/api";
 
@@ -15,46 +31,44 @@ function getAuthHeaders() {
 function VetLocator() {
   const [search, setSearch] = useState("");
   const [vets, setVets] = useState([]);
-
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [locationStatus, setLocationStatus] = useState("");
 
-  const searchValue = search.trim().toLowerCase();
+  const filteredVets = useMemo(() => {
+    const query = search.trim().toLowerCase();
 
-  const filteredVets = vets.filter((vet) => {
-    if (!searchValue) {
-      return true;
-    }
+    if (!query) return vets;
 
-    return (
-      vet.name.toLowerCase().includes(searchValue) ||
-      vet.location.toLowerCase().includes(searchValue)
-    );
-  });
+    return vets.filter((vet) => {
+      const name = vet.name?.toLowerCase() || "";
+      const location = vet.location?.toLowerCase() || "";
+      const address = vet.address?.toLowerCase() || "";
+
+      return (
+        name.includes(query) ||
+        location.includes(query) ||
+        address.includes(query)
+      );
+    });
+  }, [search, vets]);
 
   const getCurrentLocation = () => {
-    setError("");
-    setLocationStatus("");
-
     if (!navigator.geolocation) {
-      setError(
-        "Location services are not supported by this browser.",
-      );
+      setError("Geolocation is not supported by your browser.");
       return;
     }
 
     setIsLoading(true);
-    setLocationStatus("Getting your location...");
+    setError("");
+    setLocationStatus("Getting your current location...");
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        const { latitude, longitude } = position.coords;
-
         try {
-          setLocationStatus(
-            "Finding veterinary clinics near you...",
-          );
+          const { latitude, longitude } = position.coords;
+
+          setLocationStatus("Finding nearby veterinary clinics...");
 
           const response = await fetch(
             `${API_BASE_URL}/vets/nearby?lat=${latitude}&lng=${longitude}`,
@@ -69,82 +83,45 @@ function VetLocator() {
 
           if (!response.ok) {
             throw new Error(
-              result.message ||
-                "Failed to find nearby veterinary clinics.",
+              result.message || "Unable to find nearby veterinarians.",
             );
           }
 
           setVets(result.data || []);
-
-          if ((result.data || []).length === 0) {
-            setLocationStatus(
-              "No veterinary clinics were found nearby.",
-            );
-          } else {
-            setLocationStatus(
-              `${result.data.length} veterinary ${
-                result.data.length === 1
-                  ? "clinic"
-                  : "clinics"
-              } found near you.`,
-            );
-          }
-        } catch (error) {
-          console.error(
-            "Failed to load nearby vets:",
-            error,
+          setLocationStatus(
+            `${result.data?.length || 0} veterinary clinic${
+              result.data?.length === 1 ? "" : "s"
+            } found near you.`,
           );
-
+        } catch (err) {
           setError(
-            error.message ||
-              "Failed to find nearby veterinary clinics.",
+            err.message || "Something went wrong while finding veterinarians.",
           );
-
           setLocationStatus("");
         } finally {
           setIsLoading(false);
         }
       },
-      (locationError) => {
-        console.error(
-          "Location permission error:",
-          locationError,
-        );
-
+      (geoError) => {
         setIsLoading(false);
         setLocationStatus("");
 
-        if (
-          locationError.code ===
-          locationError.PERMISSION_DENIED
-        ) {
+        if (geoError.code === geoError.PERMISSION_DENIED) {
           setError(
             "Location permission was denied. Please allow location access and try again.",
           );
-        } else if (
-          locationError.code ===
-          locationError.POSITION_UNAVAILABLE
-        ) {
-          setError(
-            "Your current location could not be determined.",
-          );
-        } else if (
-          locationError.code ===
-          locationError.TIMEOUT
-        ) {
-          setError(
-            "Getting your location took too long. Please try again.",
-          );
+        } else if (geoError.code === geoError.POSITION_UNAVAILABLE) {
+          setError("Your current location could not be determined.");
+        } else if (geoError.code === geoError.TIMEOUT) {
+          setError("Location request timed out. Please try again.");
         } else {
-          setError(
-            "Unable to get your current location.",
-          );
+          setError("Unable to access your current location.");
         }
       },
       {
         enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 300000,
+        timeout: 10000,
+        maximumAge: 0,
       },
     );
   };
@@ -162,7 +139,7 @@ function VetLocator() {
 
   const openMaps = (vet) => {
     const query = encodeURIComponent(
-      `${vet.name}, ${vet.location}`,
+      `${vet.name || "Veterinary clinic"} ${vet.location || vet.address || ""}`,
     );
 
     window.open(
@@ -173,281 +150,312 @@ function VetLocator() {
   };
 
   const openDirections = (vet) => {
-    if (
-      vet.latitude === undefined ||
-      vet.longitude === undefined
-    ) {
-      openMaps(vet);
+    if (vet.latitude && vet.longitude) {
+      window.open(
+        `https://www.google.com/maps/dir/?api=1&destination=${vet.latitude},${vet.longitude}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
       return;
     }
 
-    window.open(
-      `https://www.google.com/maps/dir/?api=1&destination=${vet.latitude},${vet.longitude}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
+    openMaps(vet);
   };
 
   return (
-    <section className="px-4 py-8">
-      <div className="mx-auto max-w-3xl">
-        <p className="text-sm font-semibold uppercase tracking-wider text-orange-500">
-          Find Veterinary Care
-        </p>
+    <main className="min-h-[calc(100vh-4rem)] bg-white px-4 py-8 text-slate-900 transition-colors duration-300 dark:bg-[#0b0f14] dark:text-white sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl">
+        {/* Background glow */}
+        <div className="pointer-events-none fixed left-1/2 top-20 -z-0 h-72 w-72 -translate-x-1/2 rounded-full bg-orange-500/10 blur-3xl dark:bg-orange-500/10" />
 
-        <h1 className="mt-2 text-3xl font-bold text-gray-900">
-          Vet Locator
-        </h1>
-
-        <p className="mt-3 text-base leading-7 text-gray-600">
-          Find veterinary clinics near your current
-          location.
-        </p>
-
-        {/* Location Card */}
-        <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-xl">
-              📍
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <h2 className="text-base font-semibold text-gray-900">
-                Find vets near you
-              </h2>
-
-              <p className="mt-1 text-sm leading-6 text-gray-500">
-                Allow location access to find veterinary
-                clinics around your current position.
-              </p>
-            </div>
+        {/* Header */}
+        <section className="relative z-10 mb-8">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-600 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-400">
+            <Stethoscope size={14} />
+            Veterinary Care
           </div>
 
-          <button
-            type="button"
-            onClick={getCurrentLocation}
-            disabled={isLoading}
-            className="mt-4 w-full rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isLoading
-              ? "Finding Nearby Vets..."
-              : "Use My Location"}
-          </button>
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h1 className="max-w-3xl text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl">
+                Find a trusted{" "}
+                <span className="text-orange-500">vet nearby.</span>
+              </h1>
 
-          {locationStatus && (
-            <p className="mt-3 text-center text-xs font-medium text-gray-500">
-              {locationStatus}
-            </p>
-          )}
-
-          {error && (
-            <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3">
-              <p className="text-sm leading-5 text-red-600">
-                {error}
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400 sm:text-base">
+                Quickly discover nearby veterinary clinics and get directions
+                when your pet needs professional care.
               </p>
             </div>
-          )}
-        </div>
 
-        {/* Search */}
-        {vets.length > 0 && (
-          <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <label
-                htmlFor="vetSearch"
-                className="text-sm font-medium text-gray-700"
-              >
-                Search results
-              </label>
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+              <ShieldCheck size={16} className="text-orange-500" />
+              Location-based results
+            </div>
+          </div>
+        </section>
 
-              <button
-                type="button"
-                onClick={clearResults}
-                className="text-xs font-semibold text-gray-500 transition hover:text-orange-500"
-              >
-                Clear Results
-              </button>
+        {/* Location card */}
+        <section className="relative z-10 mb-6 overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm dark:border-white/10 dark:bg-[#111820] sm:p-6">
+          <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-orange-500/10 blur-2xl" />
+
+          <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500/10 text-orange-500">
+                <LocateFixed size={24} />
+              </div>
+
+              <div>
+                <h2 className="font-bold text-slate-900 dark:text-white">
+                  Search near your location
+                </h2>
+
+                <p className="mt-1 text-sm leading-5 text-slate-500 dark:text-slate-400">
+                  Allow location access to find veterinary clinics around you.
+                </p>
+
+                {locationStatus && (
+                  <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-orange-500">
+                    <CheckCircle2 size={14} />
+                    {locationStatus}
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="relative mt-2">
-              <input
-                id="vetSearch"
-                type="text"
-                value={search}
-                onChange={(event) =>
-                  setSearch(event.target.value)
-                }
-                placeholder="Search clinic or location"
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 pr-20 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+            <button
+              type="button"
+              onClick={getCurrentLocation}
+              disabled={isLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-orange-500/20 transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <LocateFixed
+                size={17}
+                className={isLoading ? "animate-pulse" : ""}
               />
+              {isLoading ? "Finding vets..." : "Find Vets Near Me"}
+            </button>
+          </div>
+        </section>
 
-              {search && (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs font-semibold text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-                >
-                  Clear
-                </button>
-              )}
+        {/* Error */}
+        {error && (
+          <div className="relative z-10 mb-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+            <AlertCircle className="mt-0.5 shrink-0" size={18} />
+            <div>
+              <p className="font-bold">Something went wrong</p>
+              <p className="mt-1 opacity-90">{error}</p>
             </div>
-
-            <p className="mt-3 text-xs text-gray-500">
-              {filteredVets.length}{" "}
-              {filteredVets.length === 1
-                ? "clinic"
-                : "clinics"}{" "}
-              shown
-            </p>
           </div>
         )}
 
-        {/* Results */}
+        {/* Search */}
+        <section className="relative z-10 mb-6">
+          <div className="relative">
+            <Search
+              size={19}
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by clinic name or location..."
+              className="w-full rounded-2xl border border-slate-200 bg-white py-4 pl-12 pr-12 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-orange-400 focus:ring-4 focus:ring-orange-500/10 dark:border-white/10 dark:bg-[#111820] dark:text-white dark:placeholder:text-slate-500"
+            />
+
+            {search && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="absolute right-4 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+                aria-label="Clear search"
+              >
+                <X size={17} />
+              </button>
+            )}
+          </div>
+        </section>
+
+        {/* Results header */}
         {vets.length > 0 && (
-          <div className="mt-6 space-y-4">
-            {filteredVets.length > 0 ? (
-              filteredVets.map((vet) => (
-                <div
-                  key={vet.id}
-                  className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-orange-200"
-                >
-                  <div className="flex items-start justify-between gap-3">
+          <div className="relative z-10 mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">
+                {filteredVets.length}{" "}
+                {filteredVets.length === 1 ? "clinic" : "clinics"} found
+              </p>
+
+              {search && (
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Showing results matching "{search}"
+                </p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={clearResults}
+              className="self-start text-xs font-bold text-slate-500 transition hover:text-orange-500 dark:text-slate-400"
+            >
+              Clear results
+            </button>
+          </div>
+        )}
+
+        {/* Loading */}
+        {isLoading && (
+          <div className="relative z-10 grid gap-4 md:grid-cols-2">
+            {[1, 2, 3, 4].map((item) => (
+              <div
+                key={item}
+                className="h-56 animate-pulse rounded-3xl border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-[#111820]"
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Vet cards */}
+        {!isLoading && filteredVets.length > 0 && (
+          <section className="relative z-10 grid gap-5 md:grid-cols-2">
+            {filteredVets.map((vet, index) => (
+              <article
+                key={vet.id || vet._id || `${vet.name}-${index}`}
+                className="group rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-orange-200 hover:shadow-xl hover:shadow-orange-500/5 dark:border-white/10 dark:bg-[#111820] dark:hover:border-orange-500/30 sm:p-6"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-orange-500/10 text-orange-500">
+                      <Building2 size={22} />
+                    </div>
+
                     <div className="min-w-0">
-                      <h2 className="text-lg font-semibold text-gray-900">
-                        {vet.name}
-                      </h2>
+                      <h3 className="truncate text-lg font-extrabold text-slate-900 dark:text-white">
+                        {vet.name || "Veterinary Clinic"}
+                      </h3>
 
-                      <p className="mt-1 text-sm leading-6 text-gray-500">
-                        {vet.location}
-                      </p>
-                    </div>
-
-                    <div className="shrink-0 rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-500">
-                      {vet.distanceKm} km
+                      <div className="mt-1 flex items-start gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+                        <MapPin size={15} className="mt-0.5 shrink-0 text-orange-500" />
+                        <span>
+                          {vet.location || vet.address || "Location unavailable"}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
+                  {vet.distance != null && (
+                    <span className="shrink-0 rounded-full bg-orange-500/10 px-2.5 py-1 text-xs font-bold text-orange-500">
+                      {typeof vet.distance === "number"
+                        ? `${vet.distance.toFixed(1)} km`
+                        : vet.distance}
+                    </span>
+                  )}
+                </div>
+
+                <div className="my-5 h-px bg-slate-100 dark:bg-white/10" />
+
+                <div className="grid gap-2 sm:grid-cols-2">
                   {vet.phone && (
-                    <div className="mt-4 rounded-xl bg-gray-50 p-4">
-                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                        Phone
-                      </p>
-
-                      <p className="mt-1 text-sm font-semibold text-gray-900">
-                        {vet.phone}
-                      </p>
-                    </div>
-                  )}
-
-                  {vet.openingHours && (
-                    <div className="mt-3 rounded-xl bg-gray-50 p-4">
-                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                        Opening Hours
-                      </p>
-
-                      <p className="mt-1 text-sm text-gray-700">
-                        {vet.openingHours}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openDirections(vet)
-                      }
-                      className="rounded-xl bg-orange-500 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-orange-600"
+                    <a
+                      href={`tel:${vet.phone}`}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600 dark:border-white/10 dark:text-slate-200 dark:hover:border-orange-500/30 dark:hover:bg-orange-500/10 dark:hover:text-orange-400"
                     >
-                      Get Directions
-                    </button>
-
-                    {vet.phone ? (
-                      <a
-                        href={`tel:${vet.phone.replace(
-                          /\s/g,
-                          "",
-                        )}`}
-                        className="rounded-xl border border-orange-200 px-4 py-3 text-center text-sm font-semibold text-orange-500 transition hover:bg-orange-50"
-                      >
-                        Call Clinic
-                      </a>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => openMaps(vet)}
-                        className="rounded-xl border border-gray-200 px-4 py-3 text-center text-sm font-semibold text-gray-600 transition hover:border-orange-200 hover:text-orange-500"
-                      >
-                        Open in Maps
-                      </button>
-                    )}
-                  </div>
+                      <Phone size={16} />
+                      Call
+                    </a>
+                  )}
 
                   {vet.website && (
                     <a
                       href={vet.website}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-3 block text-center text-xs font-semibold text-gray-500 hover:text-orange-500"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600 dark:border-white/10 dark:text-slate-200 dark:hover:border-orange-500/30 dark:hover:bg-orange-500/10 dark:hover:text-orange-400"
                     >
-                      Visit clinic website
+                      <Globe size={16} />
+                      Website
                     </a>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => openMaps(vet)}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600 dark:border-white/10 dark:text-slate-200 dark:hover:border-orange-500/30 dark:hover:bg-orange-500/10 dark:hover:text-orange-400"
+                  >
+                    <MapPin size={16} />
+                    View Map
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => openDirections(vet)}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-md shadow-orange-500/15 transition hover:bg-orange-600"
+                  >
+                    <Navigation size={16} />
+                    Directions
+                    <ArrowUpRight size={14} />
+                  </button>
                 </div>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm">
-                <p className="text-sm font-semibold text-gray-700">
-                  No matching clinics found
-                </p>
-
-                <p className="mt-1 text-sm leading-6 text-gray-500">
-                  Try a different clinic name or location.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  className="mt-4 rounded-xl bg-orange-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
-                >
-                  Show All Results
-                </button>
-              </div>
-            )}
-          </div>
+              </article>
+            ))}
+          </section>
         )}
 
-        {/* Empty State */}
-        {!isLoading && vets.length === 0 && !error && (
-          <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-orange-50 text-xl">
-              📍
+        {/* No search results */}
+        {!isLoading && vets.length > 0 && filteredVets.length === 0 && (
+          <section className="relative z-10 rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center dark:border-white/10 dark:bg-[#111820]">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-500/10 text-orange-500">
+              <Search size={24} />
             </div>
 
-            <h2 className="mt-3 text-base font-semibold text-gray-900">
-              Find veterinary clinics near you
-            </h2>
+            <h3 className="mt-4 text-lg font-extrabold">
+              No matching clinics
+            </h3>
 
-            <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-gray-500">
-              Click "Use My Location" and Smart Paw AI will
-              search for veterinary clinics around your current
-              position.
+            <p className="mx-auto mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">
+              Try searching with another clinic name or location.
             </p>
-          </div>
+          </section>
         )}
 
-        {/* Information */}
-        <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-          <p className="text-xs leading-5 text-gray-500">
-            Location-based clinic information comes from
-            OpenStreetMap data. Availability, phone numbers,
-            opening hours, and other details may be incomplete
-            or outdated. Confirm important information directly
-            with the clinic before visiting.
-          </p>
-        </div>
+        {/* Initial empty state */}
+        {!isLoading && vets.length === 0 && !error && (
+          <section className="relative z-10 overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 px-6 py-14 text-center dark:border-white/10 dark:bg-[#111820]">
+            <div className="absolute left-1/2 top-0 h-32 w-64 -translate-x-1/2 rounded-full bg-orange-500/10 blur-3xl" />
+
+            <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-500/10 text-orange-500">
+              <Stethoscope size={28} />
+            </div>
+
+            <h2 className="relative mt-5 text-xl font-extrabold sm:text-2xl">
+              Your nearby vets are one click away
+            </h2>
+
+            <p className="relative mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-500 dark:text-slate-400">
+              Use your current location to discover veterinary clinics near
+              you, then view their location or get directions.
+            </p>
+
+            <div className="relative mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={getCurrentLocation}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-orange-500/20 transition hover:bg-orange-600"
+              >
+                <LocateFixed size={17} />
+                Find Vets Near Me
+              </button>
+
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
+                <CalendarDays size={14} />
+                Available whenever you need care
+              </div>
+            </div>
+          </section>
+        )}
       </div>
-    </section>
+    </main>
   );
 }
 

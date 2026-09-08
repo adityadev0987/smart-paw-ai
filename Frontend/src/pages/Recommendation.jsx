@@ -1,4 +1,14 @@
 import { useMemo, useState } from "react";
+import {
+  Activity,
+  Apple,
+  Dumbbell,
+  HeartPulse,
+  PawPrint,
+  Scissors,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { useAppContext } from "../hooks/useAppContext";
 
 function Recommendation() {
@@ -13,11 +23,26 @@ function Recommendation() {
     useState("All");
 
   const categories = [
-    "All",
-    "Nutrition",
-    "Exercise",
-    "Health",
-    "Grooming",
+    {
+      name: "All",
+      icon: Sparkles,
+    },
+    {
+      name: "Nutrition",
+      icon: Apple,
+    },
+    {
+      name: "Exercise",
+      icon: Dumbbell,
+    },
+    {
+      name: "Health",
+      icon: HeartPulse,
+    },
+    {
+      name: "Grooming",
+      icon: Scissors,
+    },
   ];
 
   const recommendations = useMemo(() => {
@@ -110,169 +135,364 @@ function Recommendation() {
     setSelectedCategory("All");
   };
 
+  const getCategoryIcon = (category) => {
+    const categoryData = categories.find(
+      (item) => item.name === category,
+    );
+
+    if (!categoryData) {
+      return Sparkles;
+    }
+
+    return categoryData.icon;
+  };
+
+  const getCategoryStyles = (category) => {
+    switch (category) {
+      case "Nutrition":
+        return {
+          wrapper:
+            "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400",
+          badge:
+            "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400",
+        };
+
+      case "Exercise":
+        return {
+          wrapper:
+            "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
+          badge:
+            "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
+        };
+
+      case "Health":
+        return {
+          wrapper:
+            "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400",
+          badge:
+            "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400",
+        };
+
+      case "Grooming":
+        return {
+          wrapper:
+            "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400",
+          badge:
+            "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400",
+        };
+
+      default:
+        return {
+          wrapper:
+            "bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400",
+          badge:
+            "bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400",
+        };
+    }
+  };
+
   if (isPetLoading) {
     return (
-      <section className="px-4 py-8">
-        <div className="mx-auto max-w-3xl">
-          <p className="text-sm font-semibold uppercase tracking-wider text-orange-500">
-            Smart Pet Care
-          </p>
+      <div className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900 dark:bg-[#0b0f14] dark:text-slate-100">
+        <div className="mx-auto max-w-5xl">
+          <div className="flex min-h-[320px] items-center justify-center rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#111820]">
+            <div className="text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-orange-500 dark:bg-orange-500/10 dark:text-orange-400">
+                <PawPrint size={23} />
+              </div>
 
-          <h1 className="mt-2 text-3xl font-bold text-gray-900">
-            Recommendations
-          </h1>
-
-          <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm">
-            <p className="text-sm text-gray-500">
-              Loading pet information...
-            </p>
+              <p className="mt-4 text-sm font-medium text-slate-500 dark:text-slate-400">
+                Loading pet information...
+              </p>
+            </div>
           </div>
         </div>
-      </section>
+      </div>
     );
   }
 
   if (!currentPet) {
     return (
-      <section className="px-4 py-8">
-        <div className="mx-auto max-w-3xl">
-          <p className="text-sm font-semibold uppercase tracking-wider text-orange-500">
-            Smart Pet Care
-          </p>
+      <div className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900 dark:bg-[#0b0f14] dark:text-slate-100">
+        <div className="mx-auto max-w-5xl">
+          <div className="rounded-3xl border border-red-200 bg-red-50 p-6 dark:border-red-500/20 dark:bg-red-500/10">
+            <div className="flex gap-3">
+              <Activity
+                size={20}
+                className="mt-0.5 shrink-0 text-red-500"
+              />
 
-          <h1 className="mt-2 text-3xl font-bold text-gray-900">
-            Recommendations
-          </h1>
+              <div>
+                <p className="font-semibold text-red-700 dark:text-red-300">
+                  Pet information is not available
+                </p>
 
-          <div className="mt-6 rounded-2xl border border-red-100 bg-red-50 p-5">
-            <p className="text-sm text-red-600">
-              Pet information is not available. Please add a
-              pet before viewing recommendations.
-            </p>
+                <p className="mt-1 text-sm leading-6 text-red-600 dark:text-red-400">
+                  Please add a pet before viewing recommendations.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
-      </section>
+      </div>
     );
   }
 
   return (
-    <section className="px-4 py-8">
-      <div className="mx-auto max-w-3xl">
-        <p className="text-sm font-semibold uppercase tracking-wider text-orange-500">
-          Smart Pet Care
-        </p>
+    <div className="min-h-screen bg-slate-50 text-slate-900 transition-colors duration-300 dark:bg-[#0b0f14] dark:text-slate-100">
+      {/* Soft background glow */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -left-32 top-20 h-72 w-72 rounded-full bg-orange-400/10 blur-3xl dark:bg-orange-500/10" />
+        <div className="absolute -right-32 top-80 h-80 w-80 rounded-full bg-orange-300/10 blur-3xl dark:bg-orange-500/5" />
+      </div>
 
-        <h1 className="mt-2 text-3xl font-bold text-gray-900">
-          Recommendations
-        </h1>
-
-        <p className="mt-3 text-base leading-7 text-gray-600">
-          Explore simple care recommendations for{" "}
-          {currentPet.name}.
-        </p>
-
-        {/* Pet Selector */}
-        {pets.length > 1 && (
-          <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <label
-              htmlFor="recommendationPet"
-              className="text-sm font-semibold text-gray-700"
-            >
-              Select pet
-            </label>
-
-            <select
-              id="recommendationPet"
-              value={currentPet._id}
-              onChange={handlePetChange}
-              className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-            >
-              {pets.map((pet) => (
-                <option
-                  key={pet._id}
-                  value={pet._id}
-                >
-                  {pet.name} • {pet.breed}
-                </option>
-              ))}
-            </select>
+      <main className="relative mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Header */}
+        <section className="mb-8">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-bold text-orange-600 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-400">
+            <Sparkles size={14} />
+            SMART PET CARE
           </div>
-        )}
 
-        {/* Pet Summary */}
-        <div className="mt-6 rounded-2xl border border-orange-100 bg-orange-50 p-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-orange-500">
-            Recommendations for
-          </p>
+          <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
+            <div className="max-w-2xl">
+              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                Recommendations
+              </h1>
 
-          <h2 className="mt-1 text-xl font-bold text-gray-900">
-            {currentPet.name}
-          </h2>
+              <p className="mt-3 text-sm leading-6 text-slate-500 sm:text-base dark:text-slate-400">
+                Simple, practical care guidance tailored around{" "}
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  {currentPet.name}
+                </span>
+                .
+              </p>
+            </div>
 
-          <p className="mt-1 text-sm text-gray-600">
-            {currentPet.breed} • {currentPet.age} years old •{" "}
-            {currentPet.gender}
-          </p>
-        </div>
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-[#111820]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-500 dark:bg-orange-500/10 dark:text-orange-400">
+                <PawPrint size={19} />
+              </div>
 
-        {/* Categories */}
-        <div className="mt-6 flex flex-wrap gap-2">
-          {categories.map((category) => (
-            <button
-              key={category}
-              type="button"
-              onClick={() =>
-                setSelectedCategory(category)
-              }
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                selectedCategory === category
-                  ? "bg-orange-500 text-white"
-                  : "border border-gray-200 bg-white text-gray-600 hover:border-orange-300 hover:text-orange-500"
-              }`}
-            >
-              {category}
-            </button>
-          ))}
-        </div>
+              <div>
+                <p className="text-[11px] text-slate-400">
+                  Recommendations for
+                </p>
 
-        {/* Recommendations */}
-        <div className="mt-6 space-y-4">
-          {filteredRecommendations.map(
-            (recommendation) => (
-              <div
-                key={recommendation.id}
-                className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-orange-200"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    {recommendation.title}
-                  </h2>
-
-                  <span className="shrink-0 rounded-full bg-orange-50 px-3 py-1 text-xs font-medium text-orange-500">
-                    {recommendation.category}
-                  </span>
-                </div>
-
-                <p className="mt-3 text-sm leading-6 text-gray-600">
-                  {recommendation.description}
+                <p className="text-sm font-bold text-slate-900 dark:text-white">
+                  {currentPet.name}
                 </p>
               </div>
-            ),
+            </div>
+          </div>
+        </section>
+
+        {/* Pet summary */}
+        <section className="relative mb-6 overflow-hidden rounded-3xl border border-orange-100 bg-gradient-to-br from-orange-50 via-white to-white p-6 shadow-sm dark:border-orange-500/15 dark:from-orange-500/10 dark:via-[#111820] dark:to-[#111820]">
+          <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-orange-300/20 blur-2xl dark:bg-orange-500/10" />
+
+          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white text-orange-500 shadow-sm dark:bg-[#18212b] dark:text-orange-400">
+              <PawPrint size={30} />
+            </div>
+
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wider text-orange-500">
+                Current pet
+              </p>
+
+              <h2 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
+                {currentPet.name}
+              </h2>
+
+              <div className="mt-2 flex flex-wrap gap-2">
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm dark:bg-[#18212b] dark:text-slate-300">
+                  {currentPet.breed || "Unknown breed"}
+                </span>
+
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm dark:bg-[#18212b] dark:text-slate-300">
+                  {currentPet.age} years old
+                </span>
+
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold capitalize text-slate-600 shadow-sm dark:bg-[#18212b] dark:text-slate-300">
+                  {currentPet.gender}
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Pet selector */}
+        {pets.length > 1 && (
+          <section className="mb-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-[#111820]">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-bold">Switch pet</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Recommendations update automatically for the selected pet.
+                </p>
+              </div>
+
+              <div className="relative sm:w-72">
+                <PawPrint
+                  size={17}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-orange-500"
+                />
+
+                <select
+                  id="recommendationPet"
+                  value={currentPet._id}
+                  onChange={handlePetChange}
+                  className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm font-medium outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 dark:border-slate-700 dark:bg-[#18212b] dark:text-slate-100"
+                >
+                  {pets.map((pet) => (
+                    <option
+                      key={pet._id}
+                      value={pet._id}
+                    >
+                      {pet.name} • {pet.breed}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Category filter */}
+        <section className="mb-6">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold">
+                Care categories
+              </h2>
+
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Filter recommendations by what you want to focus on.
+              </p>
+            </div>
+
+            <span className="hidden text-xs font-semibold text-slate-400 sm:block">
+              {filteredRecommendations.length} suggestions
+            </span>
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {categories.map((category) => {
+              const Icon = category.icon;
+              const active =
+                selectedCategory === category.name;
+
+              return (
+                <button
+                  key={category.name}
+                  type="button"
+                  onClick={() =>
+                    setSelectedCategory(category.name)
+                  }
+                  className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+                    active
+                      ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
+                      : "border border-slate-200 bg-white text-slate-600 hover:border-orange-300 hover:text-orange-500 dark:border-slate-700 dark:bg-[#111820] dark:text-slate-300 dark:hover:border-orange-500/40 dark:hover:text-orange-400"
+                  }`}
+                >
+                  <Icon size={16} />
+                  {category.name}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Recommendation cards */}
+        <section>
+          {filteredRecommendations.length === 0 ? (
+            <div className="flex min-h-[260px] flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center dark:border-slate-700 dark:bg-[#111820]">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-orange-500 dark:bg-orange-500/10 dark:text-orange-400">
+                <Sparkles size={25} />
+              </div>
+
+              <h3 className="mt-4 font-bold">
+                No recommendations found
+              </h3>
+
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Try selecting another care category.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {filteredRecommendations.map((recommendation) => {
+                const Icon = getCategoryIcon(
+                  recommendation.category,
+                );
+
+                const styles = getCategoryStyles(
+                  recommendation.category,
+                );
+
+                return (
+                  <article
+                    key={recommendation.id}
+                    className="group rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md dark:border-slate-800 dark:bg-[#111820] dark:hover:border-orange-500/20"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${styles.wrapper}`}
+                      >
+                        <Icon size={20} />
+                      </div>
+
+                      <span
+                        className={`rounded-full px-3 py-1 text-[11px] font-bold ${styles.badge}`}
+                      >
+                        {recommendation.category}
+                      </span>
+                    </div>
+
+                    <h3 className="mt-5 text-base font-bold leading-6 text-slate-900 dark:text-white">
+                      {recommendation.title}
+                    </h3>
+
+                    <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                      {recommendation.description}
+                    </p>
+
+                    <div className="mt-5 flex items-center gap-2 border-t border-slate-100 pt-4 text-xs font-semibold text-slate-400 dark:border-slate-800">
+                      <CheckCircleIcon />
+                      General care guidance
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
           )}
-        </div>
+        </section>
 
         {/* Disclaimer */}
-        <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-          <p className="text-xs leading-5 text-gray-500">
-            These recommendations are general informational
-            guidance and are not a substitute for professional
-            veterinary advice. Individual care needs can vary
-            based on age, breed, health history, and other
+        <div className="mt-6 flex gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#111820]">
+          <ShieldCheck
+            size={18}
+            className="mt-0.5 shrink-0 text-orange-500"
+          />
+
+          <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+            These recommendations are general informational guidance and are
+            not a substitute for professional veterinary advice. Individual
+            care needs can vary based on age, breed, health history, and other
             factors.
           </p>
         </div>
-      </div>
-    </section>
+      </main>
+    </div>
+  );
+}
+
+function CheckCircleIcon() {
+  return (
+    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
+      ✓
+    </span>
   );
 }
 

@@ -2,14 +2,14 @@ import Pet from "../models/Pet.js";
 
 export const createPet = async (req, res) => {
   try {
-    const { name, breed, age, gender } = req.body;
-
     if (!req.user?.id) {
       return res.status(401).json({
         success: false,
         message: "Authentication required.",
       });
     }
+
+    const { name, breed, age, gender } = req.body;
 
     if (!name || !breed || age === undefined || !gender) {
       return res.status(400).json({
@@ -19,11 +19,8 @@ export const createPet = async (req, res) => {
     }
 
     const pet = await Pet.create({
+      ...req.body,
       userId: req.user.id,
-      name,
-      breed,
-      age,
-      gender,
     });
 
     res.status(201).json({
@@ -115,16 +112,21 @@ export const updatePet = async (req, res) => {
 
     const { name, breed, age, gender } = req.body;
 
+    if (!name || !breed || age === undefined || !gender) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, breed, age and gender are required.",
+      });
+    }
+
     const pet = await Pet.findOneAndUpdate(
       {
         _id: req.params.id,
         userId: req.user.id,
       },
       {
-        name,
-        breed,
-        age,
-        gender,
+        ...req.body,
+        userId: req.user.id,
       },
       {
         new: true,

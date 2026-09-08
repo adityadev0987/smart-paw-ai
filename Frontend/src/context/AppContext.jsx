@@ -8,6 +8,27 @@ export function AppProvider({ children }) {
   const [currentPet, setCurrentPet] = useState(null);
   const [isPetLoading, setIsPetLoading] = useState(true);
 
+  // Theme
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem("smartPawTheme") || "light";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("smartPawTheme", theme);
+
+    document.documentElement.classList.toggle(
+      "dark",
+      theme === "dark",
+    );
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((currentTheme) =>
+      currentTheme === "light" ? "dark" : "light",
+    );
+  };
+
+  // User
   const [currentUser, setCurrentUser] = useState(() => {
     const storedUser = localStorage.getItem("smartPawUser");
 
@@ -27,6 +48,7 @@ export function AppProvider({ children }) {
     return Boolean(localStorage.getItem("smartPawToken"));
   });
 
+  // Load pets
   useEffect(() => {
     const loadPets = async () => {
       if (!isAuthenticated) {
@@ -65,6 +87,22 @@ export function AppProvider({ children }) {
     loadPets();
   }, [isAuthenticated]);
 
+  // Add pet to global state
+  const addPet = (pet) => {
+    const formattedPet = {
+      ...pet,
+      id: pet._id,
+    };
+
+    setPets((currentPets) => [
+      ...currentPets,
+      formattedPet,
+    ]);
+
+    setCurrentPet(formattedPet);
+  };
+
+  // Login
   const login = (user, token) => {
     localStorage.setItem("smartPawToken", token);
     localStorage.setItem("smartPawUser", JSON.stringify(user));
@@ -73,6 +111,7 @@ export function AppProvider({ children }) {
     setIsAuthenticated(true);
   };
 
+  // Logout
   const logout = () => {
     localStorage.removeItem("smartPawToken");
     localStorage.removeItem("smartPawUser");
@@ -90,10 +129,17 @@ export function AppProvider({ children }) {
         isAuthenticated,
         login,
         logout,
+
         pets,
         currentPet,
         setCurrentPet,
+        addPet,
         isPetLoading,
+
+        // Theme
+        theme,
+        setTheme,
+        toggleTheme,
       }}
     >
       {children}
