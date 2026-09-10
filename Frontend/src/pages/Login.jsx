@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   Eye,
@@ -10,277 +9,393 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { loginUser } from "../services/auth";
+import { Link, useNavigate } from "react-router-dom";
 import { useAppContext } from "../hooks/useAppContext";
 
-function Login() {
+export default function Login() {
   const navigate = useNavigate();
-  const { login } = useAppContext();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const { login, theme } = useAppContext();
 
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleLogin = async (event) => {
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+
+    setFormData((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+
+    if (error) {
+      setError("");
+    }
+  };
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!email.trim() || !password.trim()) {
-      setError("Please enter your email and password.");
+    if (!formData.email.trim()) {
+      setError("Please enter your email address.");
+      return;
+    }
+
+    if (!formData.password) {
+      setError("Please enter your password.");
       return;
     }
 
     try {
-      setIsLoading(true);
+      setLoading(true);
       setError("");
 
-      const data = await loginUser({
-        email: email.trim(),
-        password,
-      });
+      await login(
+        formData.email.trim(),
+        formData.password,
+      );
 
-      login(data.user, data.token);
+      navigate("/dashboard");
+    } catch (err) {
+      console.error("Login error:", err);
 
-      navigate("/");
-    } catch (error) {
-      setError(error.message || "Failed to login.");
+      setError(
+        err?.message ||
+          "Unable to login. Please check your credentials and try again.",
+      );
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
+  const isDark = theme === "dark";
+
   return (
-    <div className="relative min-h-[calc(100vh-64px)] overflow-hidden bg-slate-50 text-slate-900 transition-colors duration-300 dark:bg-[#0b0f14] dark:text-slate-100">
-      {/* Background decoration */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-24 top-16 h-72 w-72 rounded-full bg-orange-400/10 blur-3xl dark:bg-orange-500/10" />
-        <div className="absolute -right-24 bottom-10 h-80 w-80 rounded-full bg-orange-300/10 blur-3xl dark:bg-orange-500/5" />
+    <div
+      className={`min-h-[100dvh] w-full transition-colors duration-300 ${
+        isDark
+          ? "bg-[#0b0f14] text-slate-100"
+          : "bg-[#faf9f7] text-slate-900"
+      }`}
+    >
+      {/* Background glow */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div
+          className={`absolute -left-40 -top-40 h-96 w-96 rounded-full blur-3xl ${
+            isDark
+              ? "bg-orange-500/[0.06]"
+              : "bg-orange-400/[0.08]"
+          }`}
+        />
+
+        <div
+          className={`absolute -bottom-40 -right-40 h-96 w-96 rounded-full blur-3xl ${
+            isDark
+              ? "bg-orange-500/[0.04]"
+              : "bg-orange-300/[0.07]"
+          }`}
+        />
       </div>
 
-      <main className="relative mx-auto flex min-h-[calc(100vh-64px)] max-w-6xl items-center justify-center px-4 py-10 sm:px-6">
-        <div className="grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-200/50 dark:border-slate-800 dark:bg-[#111820] dark:shadow-black/20 lg:grid-cols-2">
-          {/* Left branding panel */}
-          <div className="relative hidden overflow-hidden bg-gradient-to-br from-orange-500 to-orange-600 p-10 text-white lg:flex lg:flex-col lg:justify-between">
-            <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-white/10" />
-            <div className="absolute -bottom-28 -left-20 h-72 w-72 rounded-full bg-black/5" />
-
-            <div className="relative">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm">
-                <PawPrint size={28} />
-              </div>
-
-              <p className="mt-8 text-sm font-bold uppercase tracking-[0.2em] text-orange-100">
-                Smart Paw AI
-              </p>
-
-              <h2 className="mt-3 max-w-sm text-4xl font-bold leading-tight">
-                Smarter care for happier pets.
-              </h2>
-
-              <p className="mt-5 max-w-sm text-sm leading-7 text-orange-50">
-                Manage your pet's profile, health records, care planner, and
-                AI-powered health guidance from one place.
-              </p>
-            </div>
-
-            <div className="relative space-y-3">
-              {[
-                "AI-powered health guidance",
-                "Organized health records",
-                "Personalized care recommendations",
-              ].map((item) => (
-                <div
-                  key={item}
-                  className="flex items-center gap-3 rounded-xl bg-white/10 px-4 py-3 backdrop-blur-sm"
-                >
-                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15">
-                    <ShieldCheck size={15} />
-                  </div>
-
-                  <span className="text-sm font-medium text-orange-50">
-                    {item}
-                  </span>
-                </div>
-              ))}
+      {/* Main */}
+      <main className="relative z-10 flex min-h-[100dvh] items-center justify-center px-4 py-3 sm:px-5 sm:py-4">
+        {/* Login Card */}
+        <section
+          className={`w-full max-w-[520px] rounded-[2rem] border p-[clamp(1rem,2.2vh,1.75rem)] shadow-2xl transition-colors duration-300 ${
+            isDark
+              ? "border-slate-800 bg-[#111820] shadow-black/30"
+              : "border-slate-200 bg-white shadow-slate-200/70"
+          }`}
+        >
+          {/* Icon */}
+          <div className="mb-[clamp(0.75rem,1.8vh,1.25rem)] flex justify-center">
+            <div
+              className={`flex h-[clamp(2.75rem,6vh,3.5rem)] w-[clamp(2.75rem,6vh,3.5rem)] items-center justify-center rounded-2xl ${
+                isDark
+                  ? "bg-orange-500/10 text-orange-400"
+                  : "bg-orange-50 text-orange-500"
+              }`}
+            >
+              <PawPrint
+                size={26}
+                className="h-[clamp(1.35rem,3vh,1.7rem)] w-[clamp(1.35rem,3vh,1.7rem)]"
+              />
             </div>
           </div>
 
-          {/* Login panel */}
-          <div className="p-6 sm:p-10 lg:p-12">
-            <div className="mx-auto max-w-md">
-              {/* Mobile logo */}
-              <div className="mb-7 flex items-center gap-3 lg:hidden">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-500 text-white shadow-lg shadow-orange-500/20">
-                  <PawPrint size={21} />
-                </div>
+          {/* Heading */}
+          <div className="mb-[clamp(1rem,2.5vh,1.75rem)] text-center">
+            <div
+              className={`mx-auto mb-[clamp(0.5rem,1.2vh,1rem)] inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                isDark
+                  ? "border-orange-500/20 bg-orange-500/[0.07] text-orange-400"
+                  : "border-orange-200 bg-orange-50 text-orange-600"
+              }`}
+            >
+              <Sparkles size={13} />
+              Welcome back
+            </div>
 
-                <div>
-                  <p className="font-bold">Smart Paw AI</p>
-                  <p className="text-xs text-slate-400">
-                    Smart pet care
-                  </p>
-                </div>
-              </div>
+            <h1
+              className={`text-[clamp(1.7rem,4vh,2.25rem)] font-bold leading-tight tracking-tight ${
+                isDark
+                  ? "text-white"
+                  : "text-slate-900"
+              }`}
+            >
+              Welcome back,
+              <br />
+              <span className="text-orange-500">
+                pet parent.
+              </span>
+            </h1>
 
-              <div>
-                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-bold text-orange-600 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-400">
-                  <Sparkles size={13} />
-                  WELCOME BACK
-                </div>
+            <p
+              className={`mt-2 text-sm leading-5 ${
+                isDark
+                  ? "text-slate-400"
+                  : "text-slate-500"
+              }`}
+            >
+              Continue managing your pet's care and
+              health information.
+            </p>
+          </div>
 
-                <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                  Sign in to Smart Paw
-                </h1>
-
-                <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                  Continue managing your pet's care and health information.
-                </p>
-              </div>
-
-              <form
-                onSubmit={handleLogin}
-                className="mt-8 space-y-5"
+          {/* Form */}
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-[clamp(0.75rem,1.8vh,1.25rem)]"
+          >
+            {/* Email */}
+            <div>
+              <label
+                htmlFor="email"
+                className={`mb-1.5 block text-sm font-semibold ${
+                  isDark
+                    ? "text-slate-200"
+                    : "text-slate-800"
+                }`}
               >
-                {/* Email */}
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="text-sm font-semibold"
-                  >
-                    Email address
-                  </label>
+                Email address
+              </label>
 
-                  <div className="relative mt-2">
-                    <Mail
-                      size={18}
-                      className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                    />
+              <div className="relative">
+                <Mail
+                  size={18}
+                  className={`pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 ${
+                    isDark
+                      ? "text-slate-500"
+                      : "text-slate-400"
+                  }`}
+                />
 
-                    <input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(event) => {
-                        setEmail(event.target.value);
-                        setError("");
-                      }}
-                      placeholder="you@example.com"
-                      disabled={isLoading}
-                      autoComplete="email"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-[#18212b] dark:text-slate-100 dark:placeholder:text-slate-500"
-                    />
-                  </div>
-                </div>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  disabled={loading}
+                  className={`h-[clamp(2.75rem,6vh,3.25rem)] w-full rounded-xl border pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-500 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 disabled:cursor-not-allowed disabled:opacity-60 ${
+                    isDark
+                      ? "border-slate-700 bg-[#18212b] text-white"
+                      : "border-slate-200 bg-slate-50 text-slate-900"
+                  }`}
+                />
+              </div>
+            </div>
 
-                {/* Password */}
-                <div>
-                  <div className="flex items-center justify-between">
-                    <label
-                      htmlFor="password"
-                      className="text-sm font-semibold"
-                    >
-                      Password
-                    </label>
-                  </div>
-
-                  <div className="relative mt-2">
-                    <LockKeyhole
-                      size={18}
-                      className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                    />
-
-                    <input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(event) => {
-                        setPassword(event.target.value);
-                        setError("");
-                      }}
-                      placeholder="Enter your password"
-                      disabled={isLoading}
-                      autoComplete="current-password"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-12 text-sm outline-none transition placeholder:text-slate-400 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-[#18212b] dark:text-slate-100 dark:placeholder:text-slate-500"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setShowPassword((current) => !current)
-                      }
-                      disabled={isLoading}
-                      className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
-                      aria-label={
-                        showPassword
-                          ? "Hide password"
-                          : "Show password"
-                      }
-                    >
-                      {showPassword ? (
-                        <EyeOff size={17} />
-                      ) : (
-                        <Eye size={17} />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Error */}
-                {error && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
-                    {error}
-                  </div>
-                )}
-
-                {/* Submit */}
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="group flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-orange-500/20 transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+            {/* Password */}
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label
+                  htmlFor="password"
+                  className={`text-sm font-semibold ${
+                    isDark
+                      ? "text-slate-200"
+                      : "text-slate-800"
+                  }`}
                 >
-                  {isLoading ? (
-                    <>
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                      Signing in...
-                    </>
+                  Password
+                </label>
+
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-orange-500 transition hover:text-orange-400"
+                >
+                  Forgot password?
+                </button>
+              </div>
+
+              <div className="relative">
+                <LockKeyhole
+                  size={18}
+                  className={`pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 ${
+                    isDark
+                      ? "text-slate-500"
+                      : "text-slate-400"
+                  }`}
+                />
+
+                <input
+                  id="password"
+                  name="password"
+                  type={
+                    showPassword
+                      ? "text"
+                      : "password"
+                  }
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
+                  disabled={loading}
+                  className={`h-[clamp(2.75rem,6vh,3.25rem)] w-full rounded-xl border px-11 text-sm outline-none transition placeholder:text-slate-500 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 disabled:cursor-not-allowed disabled:opacity-60 ${
+                    isDark
+                      ? "border-slate-700 bg-[#18212b] text-white"
+                      : "border-slate-200 bg-slate-50 text-slate-900"
+                  }`}
+                />
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowPassword(
+                      (value) => !value,
+                    )
+                  }
+                  className={`absolute right-4 top-1/2 -translate-y-1/2 transition ${
+                    isDark
+                      ? "text-slate-500 hover:text-slate-300"
+                      : "text-slate-400 hover:text-slate-600"
+                  }`}
+                  aria-label={
+                    showPassword
+                      ? "Hide password"
+                      : "Show password"
+                  }
+                >
+                  {showPassword ? (
+                    <EyeOff size={18} />
                   ) : (
-                    <>
-                      Login
-                      <ArrowRight
-                        size={17}
-                        className="transition-transform group-hover:translate-x-0.5"
-                      />
-                    </>
+                    <Eye size={18} />
                   )}
                 </button>
-              </form>
-
-              {/* Register */}
-              <div className="mt-7 border-t border-slate-100 pt-6 text-center dark:border-slate-800">
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Don't have an account?{" "}
-                  <Link
-                    to="/register"
-                    className="font-bold text-orange-500 transition hover:text-orange-600"
-                  >
-                    Create account
-                  </Link>
-                </p>
-              </div>
-
-              {/* Security note */}
-              <div className="mt-6 flex items-center justify-center gap-2 text-[11px] text-slate-400 dark:text-slate-500">
-                <ShieldCheck size={14} />
-                Secure pet care dashboard access
               </div>
             </div>
+
+            {/* Error */}
+            {error && (
+              <div
+                className={`rounded-xl border px-4 py-2.5 text-sm leading-5 ${
+                  isDark
+                    ? "border-red-500/20 bg-red-500/10 text-red-300"
+                    : "border-red-200 bg-red-50 text-red-600"
+                }`}
+              >
+                {error}
+              </div>
+            )}
+
+            {/* Login Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="group flex h-[clamp(2.75rem,6vh,3.25rem)] w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 text-sm font-bold text-white shadow-lg shadow-orange-500/20 transition hover:bg-orange-600 hover:shadow-orange-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  Login
+                  <ArrowRight
+                    size={17}
+                    className="transition-transform group-hover:translate-x-1"
+                  />
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div className="my-[clamp(1rem,2.2vh,1.5rem)] flex items-center gap-3">
+            <div
+              className={`h-px flex-1 ${
+                isDark
+                  ? "bg-slate-800"
+                  : "bg-slate-200"
+              }`}
+            />
+
+            <span
+              className={`text-[10px] font-medium uppercase tracking-wider ${
+                isDark
+                  ? "text-slate-500"
+                  : "text-slate-400"
+              }`}
+            >
+              Smart Paw AI
+            </span>
+
+            <div
+              className={`h-px flex-1 ${
+                isDark
+                  ? "bg-slate-800"
+                  : "bg-slate-200"
+              }`}
+            />
           </div>
-        </div>
+
+          {/* Register */}
+          <div className="text-center">
+            <p
+              className={`text-sm ${
+                isDark
+                  ? "text-slate-400"
+                  : "text-slate-500"
+              }`}
+            >
+              Don't have an account?{" "}
+              <Link
+                to="/register"
+                className="font-bold text-orange-500 transition hover:text-orange-400"
+              >
+                Create account
+              </Link>
+            </p>
+          </div>
+
+          {/* Security */}
+          <div
+            className={`mt-[clamp(0.75rem,1.8vh,1.25rem)] flex items-center justify-center gap-2 text-[11px] ${
+              isDark
+                ? "text-slate-500"
+                : "text-slate-400"
+            }`}
+          >
+            <ShieldCheck
+              size={14}
+              className="text-orange-500"
+            />
+
+            <span>
+              Secure pet care dashboard access
+            </span>
+          </div>
+        </section>
       </main>
     </div>
   );
 }
-
-export default Login;

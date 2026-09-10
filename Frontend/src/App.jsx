@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom"
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom"
 import Navbar from "./components/layout/Navbar"
 
 import Home from "./pages/Home"
@@ -14,10 +14,16 @@ import Login from "./pages/Login"
 import Register from "./pages/Register"
 import Notfound from "./pages/Notfound"
 
-function App() {
+function AppContent() {
+  const location = useLocation()
+
+  const hideNavbar =
+    location.pathname === "/login" ||
+    location.pathname === "/register"
+
   return (
-    <BrowserRouter>
-      <Navbar />
+    <>
+      {!hideNavbar && <Navbar />}
 
       <Routes>
         <Route path="/" element={<Home />} />
@@ -33,6 +39,14 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="*" element={<Notfound />} />
       </Routes>
+    </>
+  )
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
     </BrowserRouter>
   )
 }

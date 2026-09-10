@@ -1,4 +1,59 @@
-import OpenAI from "openai";
+import { GoogleGenAI, Type } from "@google/genai";
+
+function getGeminiClient() {
+  return new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
+  });
+}
+
+/*
+ * Small delay helper used for Gemini retries.
+ */
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/*
+ * Gemini can temporarily return 429/500/503 errors.
+ * Retry those errors before giving up.
+ */
+async function generateGeminiResponse(ai, requestConfig) {
+  const maxAttempts = 3;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await ai.models.generateContent(requestConfig);
+    } catch (error) {
+      const status = error?.status;
+
+      const isRetryable = status === 429 || status === 500 || status === 503;
+
+      /*
+       * If the error is not temporary, or all attempts are exhausted,
+       * immediately throw the error.
+       */
+      if (!isRetryable || attempt === maxAttempts) {
+        throw error;
+      }
+
+      /*
+       * Exponential backoff:
+       *
+       * Attempt 1 fails → wait 1 second
+       * Attempt 2 fails → wait 2 seconds
+       */
+      const delay = attempt * 1000;
+
+      console.warn(
+        `Gemini request failed with ${status}. ` +
+          `Retrying in ${delay}ms... ` +
+          `(attempt ${attempt}/${maxAttempts})`,
+      );
+
+      await sleep(delay);
+    }
+  }
+}
 
 export async function generateHealthInsight({
   pet,
@@ -6,32 +61,25 @@ export async function generateHealthInsight({
   symptoms,
   conversation = [],
 }) {
-  const openai = new OpenAI({
-    apiKey: process.env.OPENROUTER_API_KEY,
-    baseURL: "https://openrouter.ai/api/v1",
-  });
-
   const healthHistory =
     healthRecords.length > 0
       ? healthRecords
-          .map(
-            (record) =>
-              `- ${record.date}: ${record.title} (${record.type})${
-                record.notes ? ` - ${record.notes}` : ""
-              }`,
-          )
+          .map((record) => {
+            return `- ${record.date}: ${record.title} (${record.type})${
+              record.notes ? ` - ${record.notes}` : ""
+            }`;
+          })
           .join("\n")
       : "No previous health records are available.";
 
   const conversationHistory =
     conversation.length > 0
       ? conversation
-          .map(
-            (message) =>
-              `${message.role === "user" ? "Owner" : "Smart Paw AI"}: ${
-                message.content
-              }`,
-          )
+          .map((message) => {
+            return `${
+              message.role === "user" ? "Owner" : "Smart Paw AI"
+            }: ${message.content}`;
+          })
           .join("\n")
       : "No previous conversation.";
 
@@ -39,78 +87,7 @@ export async function generateHealthInsight({
     (message) => message.role === "assistant",
   ).length;
 
-  const response = await openai.chat.completions.create({
-    model: "openai/gpt-oss-20b:free",
-
-    temperature: 0.2,
-
-    /*
-     * Keep enough room for the final answer.
-     */
-    max_tokens: 900,
-
-    /*
-     * Let the model reason internally, but don't return
-     * reasoning tokens as part of the visible response.
-     *
-     * This also reduces the chance that reasoning consumes
-     * the complete output budget.
-     */
-    reasoning: {
-      effort: "low",
-      exclude: true,
-    },
-
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "smart_paw_health_check",
-        strict: true,
-        schema: {
-          type: "object",
-          additionalProperties: false,
-
-          properties: {
-            status: {
-              type: "string",
-              enum: ["FOLLOW_UP", "FINAL"],
-            },
-
-            question: {
-              type: ["string", "null"],
-            },
-
-            assessment: {
-              type: ["string", "null"],
-            },
-
-            nextSteps: {
-              type: "array",
-              items: {
-                type: "string",
-              },
-            },
-
-            urgent: {
-              type: "boolean",
-            },
-          },
-
-          required: [
-            "status",
-            "question",
-            "assessment",
-            "nextSteps",
-            "urgent",
-          ],
-        },
-      },
-    },
-
-    messages: [
-      {
-        role: "system",
-        content: `
+  const systemInstruction = `
 You are Smart Paw AI.
 
 You are a veterinary-informed pet health guidance assistant.
@@ -128,13 +105,8 @@ veterinary care.
 
 However, you MUST provide substantive and useful health guidance.
 
-Do not give generic answers such as:
-
-"Monitor your pet."
-"See a veterinarian if it gets worse."
-
-unless those statements are accompanied by specific guidance relevant
-to the actual case.
+Do not give generic answers unless they are accompanied by specific
+guidance relevant to the actual case.
 
 ==================================================
 CASE ANALYSIS
@@ -155,19 +127,6 @@ The conversation is extremely important.
 
 Do not analyze only the original symptom.
 
-Example:
-
-Original symptom:
-"My dog has been vomiting twice today."
-
-Later information:
-"Not eating."
-"Drinking water."
-"Vomiting since yesterday."
-"Looks lethargic."
-
-The final assessment MUST consider the complete pattern.
-
 ==================================================
 DO NOT INVENT INFORMATION
 ==================================================
@@ -185,15 +144,12 @@ Never invent:
 
 Never assume an unreported symptom is absent.
 
-If the owner did not mention diarrhea, do not say:
-"There is no diarrhea."
-
 ==================================================
 FOLLOW-UP QUESTIONS
 ==================================================
 
-Ask a follow-up question only when the missing information could
-meaningfully change the health guidance or urgency.
+Ask a follow-up question only when missing information could meaningfully
+change the health guidance or urgency.
 
 Ask exactly ONE question.
 
@@ -272,9 +228,6 @@ TRIAGE
 
 Consider the combination of symptoms.
 
-Repeated vomiting together with reduced appetite and lethargy is more
-concerning than a single isolated episode.
-
 Potential warning signs include:
 
 - Repeated or persistent vomiting
@@ -315,23 +268,6 @@ It must:
 
 Do not simply repeat the original symptom.
 
-BAD:
-
-"Rocky is currently experiencing My dog has been vomiting twice today."
-
-GOOD STYLE:
-
-"Rocky has been vomiting since yesterday and you have also reported
-reduced appetite and lower energy, while he is still drinking water.
-That combination can occur with several gastrointestinal or other
-underlying problems, and the available information is not enough to
-determine the specific cause from chat alone. Because the vomiting has
-continued and is accompanied by changes in appetite and energy, this
-deserves closer monitoring and veterinary evaluation if it continues
-or worsens."
-
-Do NOT copy this example exactly.
-
 Generate a case-specific assessment.
 
 ==================================================
@@ -341,16 +277,6 @@ NEXT STEPS
 Provide 2-5 practical next steps.
 
 They should be specific to the case.
-
-Examples:
-
-- Monitor vomiting frequency.
-- Monitor whether water can be kept down.
-- Monitor appetite and energy.
-- Record any blood or unusual material.
-- Watch for worsening lethargy.
-- Contact a veterinarian if symptoms persist.
-- Seek prompt veterinary care if serious warning signs appear.
 
 Do NOT recommend:
 
@@ -397,8 +323,8 @@ Required structure:
 
 {
   "status": "FOLLOW_UP" | "FINAL",
-  "question": "string or null",
-  "assessment": "string or null",
+  "question": "string",
+  "assessment": "string",
   "nextSteps": ["string"],
   "urgent": true | false
 }
@@ -407,25 +333,22 @@ FOLLOW_UP:
 
 - status = FOLLOW_UP
 - question = exactly ONE useful question
-- assessment = null
+- assessment = ""
 - nextSteps = []
 - urgent = true only when appropriate
 
 FINAL:
 
 - status = FINAL
-- question = null
+- question = ""
 - assessment = meaningful and case-specific
 - nextSteps = 2-5 useful actions
 - urgent = appropriate urgency judgment
 
 The owner should receive meaningful guidance, not a generic disclaimer.
-`,
-      },
+`;
 
-      {
-        role: "user",
-        content: `
+  const userPrompt = `
 PET PROFILE
 
 Name: ${pet.name}
@@ -473,97 +396,149 @@ For FINAL:
 - Explain when veterinary evaluation is appropriate.
 - Consider urgent warning signs.
 - Do not invent information.
-`,
-      },
-    ],
-  });
-
-  const message = response.choices?.[0]?.message;
-
-  const content = message?.content?.trim() || "";
-
-  console.log(
-    "AI model:",
-    response.model,
-  );
-
-  console.log(
-    "AI finish reason:",
-    response.choices?.[0]?.finish_reason,
-  );
-
-  console.log(
-    "AI response content length:",
-    content.length,
-  );
-
-  if (!content) {
-    console.error(
-      "AI returned empty content.",
-      JSON.stringify(message, null, 2),
-    );
-
-    throw new Error(
-      "AI returned an empty response.",
-    );
-  }
+`;
 
   try {
-    const parsed = JSON.parse(content);
+    const ai = getGeminiClient();
+
+    const response = await generateGeminiResponse(ai, {
+      model: "gemini-3.6-flash",
+
+      contents: userPrompt,
+
+      config: {
+        systemInstruction,
+
+        temperature: 0.2,
+
+        maxOutputTokens: 1800,
+
+        temperature: 0.2,
+
+        maxOutputTokens: 1800,
+
+        thinkingConfig: {
+          thinkingBudget: 256,
+        },
+
+        responseMimeType: "application/json",
+
+        responseMimeType: "application/json",
+
+        responseSchema: {
+          type: Type.OBJECT,
+
+          properties: {
+            status: {
+              type: Type.STRING,
+              enum: ["FOLLOW_UP", "FINAL"],
+            },
+
+            question: {
+              type: Type.STRING,
+            },
+
+            assessment: {
+              type: Type.STRING,
+            },
+
+            nextSteps: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.STRING,
+              },
+            },
+
+            urgent: {
+              type: Type.BOOLEAN,
+            },
+          },
+
+          required: ["status", "question", "assessment", "nextSteps", "urgent"],
+        },
+      },
+    });
+
+    const content = response.text?.trim() || "";
+
+    console.log("AI model: Gemini 3.6 Flash");
+    console.log("AI response content length:", content.length);
+    console.log("Gemini response:", JSON.stringify(response, null, 2));
+
+    if (!content) {
+      console.error("Gemini returned empty content.");
+
+      throw new Error("AI returned an empty response.");
+    }
+
+    let parsed;
+
+    try {
+      parsed = JSON.parse(content);
+    } catch (error) {
+      console.error("Failed to parse Gemini response:", content);
+
+      console.error("AI parsing error:", error);
+
+      throw new Error("Invalid JSON returned by Gemini.");
+    }
 
     /*
      * Never allow a fourth follow-up question.
      */
-    if (
-      followUpCount >= 3 &&
-      parsed.status === "FOLLOW_UP"
-    ) {
+    if (followUpCount >= 3 && parsed.status === "FOLLOW_UP") {
       return {
         status: "FINAL",
-        question: null,
-        assessment: `Based on the information shared so far, ${pet.name}'s symptoms deserve continued attention. Several different conditions can produce similar symptoms, and the available information is not enough to determine the underlying cause without a veterinary assessment. Continue monitoring the reported symptoms and watch closely for worsening behavior, changes in appetite or water intake, increasing weakness, or other warning signs.`,
+
+        question: "",
+
+        assessment: `${pet.name}'s symptoms deserve continued attention. Several different conditions can produce similar symptoms, and the available information is not enough to determine the underlying cause from chat alone. Continue monitoring the reported symptoms and watch closely for worsening behavior, changes in appetite or water intake, increasing weakness, or other warning signs.`,
+
         nextSteps: [
           "Monitor your pet's symptoms and overall behavior closely.",
+
           "Keep track of appetite, water intake, energy, and symptom frequency.",
+
           "Contact a qualified veterinarian if the symptoms persist or worsen.",
         ],
+
         urgent: Boolean(parsed.urgent),
       };
     }
 
+    /*
+     * FOLLOW-UP response
+     */
     if (parsed.status === "FOLLOW_UP") {
-      const question = String(
-        parsed.question || "",
-      ).trim();
+      const question = String(parsed.question || "").trim();
 
       if (!question) {
-        throw new Error(
-          "AI returned FOLLOW_UP without a question.",
-        );
+        throw new Error("AI returned FOLLOW_UP without a question.");
       }
 
       return {
         status: "FOLLOW_UP",
+
         question,
-        assessment: null,
+
+        assessment: "",
+
         nextSteps: [],
+
         urgent: Boolean(parsed.urgent),
       };
     }
 
+    /*
+     * FINAL response
+     */
     if (parsed.status === "FINAL") {
-      const assessment = String(
-        parsed.assessment || "",
-      ).trim();
+      const assessment = String(parsed.assessment || "").trim();
 
-      const nextSteps = Array.isArray(
-        parsed.nextSteps,
-      )
+      const nextSteps = Array.isArray(parsed.nextSteps)
         ? parsed.nextSteps
             .filter(
-              (step) =>
-                typeof step === "string" &&
-                step.trim().length > 0,
+              (step) => typeof step === "string" && step.trim().length > 0,
             )
             .slice(0, 5)
         : [];
@@ -581,70 +556,58 @@ For FINAL:
       const invalid =
         !assessment ||
         assessment.length < 150 ||
-        invalidAssessmentPatterns.some((pattern) =>
-          pattern.test(assessment),
-        );
+        invalidAssessmentPatterns.some((pattern) => pattern.test(assessment));
 
       if (!invalid) {
         return {
           status: "FINAL",
-          question: null,
+
+          question: "",
+
           assessment,
+
           nextSteps:
             nextSteps.length > 0
               ? nextSteps
               : [
                   "Monitor your pet's symptoms and behavior.",
+
                   "Watch for new or worsening symptoms.",
+
                   "Contact a qualified veterinarian if symptoms persist or worsen.",
                 ],
+
           urgent: Boolean(parsed.urgent),
         };
       }
 
       /*
-       * Better fallback.
-       *
-       * Notice that we do NOT concatenate:
-       * "is experiencing" + the owner's sentence.
+       * Safe fallback if Gemini returns an unusable
+       * final assessment.
        */
       return {
         status: "FINAL",
-        question: null,
+
+        question: "",
+
         assessment: `${pet.name}'s current health concern is based on the symptoms and observations you reported during this health check. Several different conditions can produce similar symptoms, so the available information is not enough to determine the exact underlying cause from chat alone. The most important next step is to monitor the symptoms and watch for changes in appetite, water intake, energy, behavior, or any new warning signs. Veterinary evaluation is appropriate if the problem persists, worsens, or becomes concerning.`,
+
         nextSteps: [
           "Monitor the reported symptoms and your pet's overall behavior.",
+
           "Keep track of appetite, water intake, energy, and symptom frequency.",
+
           "Contact a qualified veterinarian if symptoms persist or worsen.",
         ],
+
         urgent: Boolean(parsed.urgent),
       };
     }
 
-    throw new Error(
-      "AI returned an invalid response status.",
-    );
+    throw new Error("AI returned an invalid response status.");
   } catch (error) {
-    console.error(
-      "Failed to parse AI response:",
-      content,
-    );
+    console.error("Gemini health insight error:", error);
 
-    console.error(
-      "AI parsing error:",
-      error,
-    );
-
-    return {
-      status: "FINAL",
-      question: null,
-      assessment: `${pet.name}'s current health concern is based on the symptoms and observations reported during this health check. Several different conditions can produce similar symptoms, and the available information is not enough to determine the exact underlying cause from chat alone. Continue monitoring your pet closely for changes or worsening symptoms, and seek veterinary guidance if the problem persists or concerning signs develop.`,
-      nextSteps: [
-        "Monitor your pet's symptoms and behavior.",
-        "Watch for new or worsening symptoms.",
-        "Contact a qualified veterinarian if symptoms persist or worsen.",
-      ],
-      urgent: false,
-    };
+    throw new Error("Failed to generate health insight.");
   }
 }
