@@ -4,12 +4,8 @@ import {
   AlertTriangle,
   Apple,
   Baby,
-  Bath,
-  CalendarDays,
   CheckCircle2,
-  ChevronDown,
   ClipboardList,
-  Dumbbell,
   Edit3,
   Heart,
   Home,
@@ -25,12 +21,15 @@ import {
   Syringe,
   Trash2,
   UserRound,
-  Utensils,
   X,
 } from "lucide-react";
 
 import { useAppContext } from "../hooks/useAppContext";
-import { createPet, updatePet } from "../services/api";
+import {
+  createPet,
+  updatePet,
+  deletePet,
+} from "../services/api";
 
 const sections = [
   {
@@ -250,7 +249,8 @@ function normalizePet(pet) {
       ...emptyPet.medical,
       ...(pet?.medical || {}),
       conditions: pet?.medical?.conditions || [],
-      previousIllnesses: pet?.medical?.previousIllnesses || [],
+      previousIllnesses:
+        pet?.medical?.previousIllnesses || [],
       allergies: pet?.medical?.allergies || [],
       surgeries: pet?.medical?.surgeries || [],
       previousHospitalizations:
@@ -262,7 +262,8 @@ function normalizePet(pet) {
     preventiveCare: {
       ...emptyPet.preventiveCare,
       ...(pet?.preventiveCare || {}),
-      vaccinations: pet?.preventiveCare?.vaccinations || [],
+      vaccinations:
+        pet?.preventiveCare?.vaccinations || [],
       parasitePrevention: {
         ...emptyPet.preventiveCare.parasitePrevention,
         ...(pet?.preventiveCare?.parasitePrevention || {}),
@@ -278,7 +279,8 @@ function normalizePet(pet) {
       ...emptyPet.behavior,
       ...(pet?.behavior || {}),
       temperament: pet?.behavior?.temperament || [],
-      behavioralConcerns: pet?.behavior?.behavioralConcerns || [],
+      behavioralConcerns:
+        pet?.behavior?.behavioralConcerns || [],
     },
 
     lifestyle: {
@@ -298,7 +300,8 @@ function normalizePet(pet) {
         ...emptyPet.healthMonitoring.baseline,
         ...(pet?.healthMonitoring?.baseline || {}),
       },
-      observations: pet?.healthMonitoring?.observations || [],
+      observations:
+        pet?.healthMonitoring?.observations || [],
     },
 
     reproductiveFamily: {
@@ -353,7 +356,10 @@ function Field({
           className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-[#18212B] dark:text-white"
         >
           {options.map((option) => (
-            <option key={option.value} value={option.value}>
+            <option
+              key={option.value}
+              value={option.value}
+            >
               {option.label}
             </option>
           ))}
@@ -401,7 +407,12 @@ function TextArea({
   );
 }
 
-function Toggle({ label, checked, onChange, disabled = false }) {
+function Toggle({
+  label,
+  checked,
+  onChange,
+  disabled = false,
+}) {
   return (
     <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-[#18212B]">
       <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -430,7 +441,12 @@ function Toggle({ label, checked, onChange, disabled = false }) {
   );
 }
 
-function SectionCard({ title, description, icon: Icon, children }) {
+function SectionCard({
+  title,
+  description,
+  icon: Icon,
+  children,
+}) {
   return (
     <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#111820]">
       <div className="border-b border-slate-100 bg-gradient-to-r from-orange-50/70 to-white p-5 dark:border-white/10 dark:from-orange-500/5 dark:to-[#111820] sm:p-6">
@@ -464,11 +480,13 @@ function PetProfile() {
     currentPet,
     setCurrentPet,
     addPet,
+    removePet,
     isPetLoading,
   } = useAppContext();
 
   const [petData, setPetData] = useState(null);
-  const [activeSection, setActiveSection] = useState("general");
+  const [activeSection, setActiveSection] =
+    useState("general");
 
   const [isEditing, setIsEditing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
@@ -515,12 +533,14 @@ function PetProfile() {
       petData.nutrition?.foodBrand,
       petData.lifestyle?.activityLevel !== "Unknown",
       petData.groomingDental?.groomingFrequency,
-      petData.healthMonitoring?.baseline?.appetite !== "Unknown",
+      petData.healthMonitoring?.baseline?.appetite !==
+        "Unknown",
       petData.emergency?.primaryVet?.name,
     ];
 
     return Math.round(
-      (checks.filter(Boolean).length / checks.length) * 100,
+      (checks.filter(Boolean).length / checks.length) *
+        100,
     );
   }, [petData]);
 
@@ -544,7 +564,11 @@ function PetProfile() {
     }));
   };
 
-  const updateNestedField = (section, name, value) => {
+  const updateNestedField = (
+    section,
+    name,
+    value,
+  ) => {
     setPetData((current) => ({
       ...current,
       [section]: {
@@ -637,7 +661,9 @@ function PetProfile() {
           mealsPerDay:
             petData.nutrition?.mealsPerDay === ""
               ? undefined
-              : Number(petData.nutrition.mealsPerDay),
+              : Number(
+                  petData.nutrition.mealsPerDay,
+                ),
         },
       };
 
@@ -650,17 +676,24 @@ function PetProfile() {
         payload,
       );
 
-      const normalizedPet = normalizePet(updatedPet);
+      const normalizedPet =
+        normalizePet(updatedPet);
 
       setCurrentPet(normalizedPet);
       setPetData(normalizedPet);
       setIsEditing(false);
-      setSuccess("Pet profile updated successfully.");
+      setSuccess(
+        "Pet profile updated successfully.",
+      );
     } catch (error) {
-      console.error("Failed to update pet:", error);
+      console.error(
+        "Failed to update pet:",
+        error,
+      );
 
       setError(
-        error.message || "Failed to update pet information.",
+        error.message ||
+          "Failed to update pet information.",
       );
     } finally {
       setIsSaving(false);
@@ -699,7 +732,8 @@ function PetProfile() {
         gender: newPet.gender,
       });
 
-      const normalizedPet = normalizePet(createdPet);
+      const normalizedPet =
+        normalizePet(createdPet);
 
       if (addPet) {
         addPet(normalizedPet);
@@ -717,11 +751,19 @@ function PetProfile() {
 
       setIsAdding(false);
       setActiveSection("general");
-      setSuccess("New pet added successfully.");
+      setSuccess(
+        "New pet added successfully.",
+      );
     } catch (error) {
-      console.error("Failed to create pet:", error);
+      console.error(
+        "Failed to create pet:",
+        error,
+      );
 
-      setError(error.message || "Failed to add new pet.");
+      setError(
+        error.message ||
+          "Failed to add new pet.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -751,7 +793,56 @@ function PetProfile() {
     setSuccess("");
   };
 
-  const addArrayItem = (section, field, value) => {
+  // Delete current pet
+  const handleDeletePet = async () => {
+    if (!currentPet?._id) {
+      setError(
+        "Pet information is not available.",
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${currentPet.name}? This action cannot be undone.`,
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setIsSaving(true);
+      setError("");
+      setSuccess("");
+
+      await deletePet(currentPet._id);
+
+      removePet(currentPet._id);
+
+      setIsEditing(false);
+      setActiveSection("general");
+
+      setSuccess(
+        `${currentPet.name} has been deleted successfully.`,
+      );
+    } catch (error) {
+      console.error(
+        "Failed to delete pet:",
+        error,
+      );
+
+      setError(
+        error.message ||
+          "Failed to delete pet.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const addArrayItem = (
+    section,
+    field,
+    value,
+  ) => {
     if (!value?.trim()) return;
 
     setPetData((current) => ({
@@ -766,13 +857,18 @@ function PetProfile() {
     }));
   };
 
-  const removeArrayItem = (section, field, index) => {
+  const removeArrayItem = (
+    section,
+    field,
+    index,
+  ) => {
     setPetData((current) => ({
       ...current,
       [section]: {
         ...current[section],
         [field]: current[section][field].filter(
-          (_, itemIndex) => itemIndex !== index,
+          (_, itemIndex) =>
+            itemIndex !== index,
         ),
       },
     }));
@@ -783,7 +879,9 @@ function PetProfile() {
       <section className="min-h-[calc(100vh-4rem)] bg-white px-4 py-8 dark:bg-[#0B0F14] sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <div className="h-8 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+
           <div className="mt-3 h-5 w-80 max-w-full animate-pulse rounded bg-slate-100 dark:bg-slate-800/70" />
+
           <div className="mt-8 h-64 animate-pulse rounded-3xl bg-slate-100 dark:bg-[#111820]" />
         </div>
       </section>
@@ -813,9 +911,10 @@ function PetProfile() {
             </h1>
 
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400 sm:text-base">
-              Keep your pet's health, lifestyle, nutrition and
-              care information organized for more personalized
-              Smart Paw AI assistance.
+              Keep your pet's health, lifestyle,
+              nutrition and care information organized
+              for more personalized Smart Paw AI
+              assistance.
             </p>
           </div>
 
@@ -843,6 +942,7 @@ function PetProfile() {
               size={18}
               className="mt-0.5 shrink-0 text-green-600 dark:text-green-400"
             />
+
             <p className="text-sm font-semibold text-green-700 dark:text-green-400">
               {success}
             </p>
@@ -855,6 +955,7 @@ function PetProfile() {
               size={18}
               className="mt-0.5 shrink-0 text-red-500"
             />
+
             <p className="text-sm font-semibold text-red-600 dark:text-red-400">
               {error}
             </p>
@@ -875,6 +976,7 @@ function PetProfile() {
                     <p className="text-xs font-bold uppercase tracking-wider text-orange-500">
                       New Pet
                     </p>
+
                     <h2 className="mt-1 text-xl font-black">
                       Create pet profile
                     </h2>
@@ -908,9 +1010,18 @@ function PetProfile() {
                 value={newPet.species}
                 onChange={handleNewPetChange}
                 options={[
-                  { value: "Dog", label: "Dog" },
-                  { value: "Cat", label: "Cat" },
-                  { value: "Other", label: "Other" },
+                  {
+                    value: "Dog",
+                    label: "Dog",
+                  },
+                  {
+                    value: "Cat",
+                    label: "Cat",
+                  },
+                  {
+                    value: "Other",
+                    label: "Other",
+                  },
                 ]}
                 disabled={isSaving}
               />
@@ -941,8 +1052,14 @@ function PetProfile() {
                 value={newPet.gender}
                 onChange={handleNewPetChange}
                 options={[
-                  { value: "Male", label: "Male" },
-                  { value: "Female", label: "Female" },
+                  {
+                    value: "Male",
+                    label: "Male",
+                  },
+                  {
+                    value: "Female",
+                    label: "Female",
+                  },
                 ]}
                 disabled={isSaving}
               />
@@ -965,7 +1082,9 @@ function PetProfile() {
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-60"
               >
                 <Plus size={17} />
-                {isSaving ? "Creating..." : "Create Pet"}
+                {isSaving
+                  ? "Creating..."
+                  : "Create Pet"}
               </button>
             </div>
           </div>
@@ -997,7 +1116,8 @@ function PetProfile() {
                       </div>
 
                       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                        {petData.breed} • {petData.gender} •{" "}
+                        {petData.breed} •{" "}
+                        {petData.gender} •{" "}
                         {petData.age} years
                       </p>
                     </div>
@@ -1008,11 +1128,16 @@ function PetProfile() {
                       <select
                         value={currentPet._id}
                         onChange={handlePetChange}
-                        disabled={isEditing || isSaving}
+                        disabled={
+                          isEditing || isSaving
+                        }
                         className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-orange-500 dark:border-white/10 dark:bg-[#18212B] dark:text-white"
                       >
                         {pets.map((pet) => (
-                          <option key={pet._id} value={pet._id}>
+                          <option
+                            key={pet._id}
+                            value={pet._id}
+                          >
                             {pet.name} • {pet.breed}
                           </option>
                         ))}
@@ -1020,18 +1145,32 @@ function PetProfile() {
                     )}
 
                     {!isEditing ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsEditing(true);
-                          setError("");
-                          setSuccess("");
-                        }}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white hover:bg-orange-600"
-                      >
-                        <Edit3 size={16} />
-                        Edit Profile
-                      </button>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsEditing(true);
+                            setError("");
+                            setSuccess("");
+                          }}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white hover:bg-orange-600"
+                        >
+                          <Edit3 size={16} />
+                          Edit Profile
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleDeletePet}
+                          disabled={isSaving}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-bold text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/15"
+                        >
+                          <Trash2 size={16} />
+                          {isSaving
+                            ? "Deleting..."
+                            : "Delete Pet"}
+                        </button>
+                      </div>
                     ) : (
                       <div className="flex gap-2">
                         <button
@@ -1050,7 +1189,9 @@ function PetProfile() {
                           className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-60"
                         >
                           <Save size={16} />
-                          {isSaving ? "Saving..." : "Save Changes"}
+                          {isSaving
+                            ? "Saving..."
+                            : "Save Changes"}
                         </button>
                       </div>
                     )}
@@ -1063,6 +1204,7 @@ function PetProfile() {
                     <span className="text-slate-500 dark:text-slate-400">
                       Health profile completion
                     </span>
+
                     <span className="text-orange-500">
                       {completion}%
                     </span>
@@ -1071,7 +1213,9 @@ function PetProfile() {
                   <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                     <div
                       className="h-full rounded-full bg-orange-500 transition-all duration-500"
-                      style={{ width: `${completion}%` }}
+                      style={{
+                        width: `${completion}%`,
+                      }}
                     />
                   </div>
                 </div>
@@ -1083,15 +1227,19 @@ function PetProfile() {
               <div className="flex min-w-max gap-1">
                 {sections.map((section) => {
                   const Icon = section.icon;
+
                   const active =
-                    activeSection === section.id;
+                    activeSection ===
+                    section.id;
 
                   return (
                     <button
                       key={section.id}
                       type="button"
                       onClick={() =>
-                        setActiveSection(section.id)
+                        setActiveSection(
+                          section.id,
+                        )
                       }
                       className={`inline-flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold transition sm:px-4 ${
                         active
@@ -1137,9 +1285,18 @@ function PetProfile() {
                       )
                     }
                     options={[
-                      { value: "Dog", label: "Dog" },
-                      { value: "Cat", label: "Cat" },
-                      { value: "Other", label: "Other" },
+                      {
+                        value: "Dog",
+                        label: "Dog",
+                      },
+                      {
+                        value: "Cat",
+                        label: "Cat",
+                      },
+                      {
+                        value: "Other",
+                        label: "Other",
+                      },
                     ]}
                     disabled={!isEditing}
                   />
@@ -1199,7 +1356,10 @@ function PetProfile() {
                       )
                     }
                     options={[
-                      { value: "Male", label: "Male" },
+                      {
+                        value: "Male",
+                        label: "Male",
+                      },
                       {
                         value: "Female",
                         label: "Female",
@@ -1210,7 +1370,9 @@ function PetProfile() {
 
                   <Field
                     label="Reproductive Status"
-                    value={petData.reproductiveStatus}
+                    value={
+                      petData.reproductiveStatus
+                    }
                     onChange={(e) =>
                       updateRootField(
                         "reproductiveStatus",
@@ -1242,7 +1404,9 @@ function PetProfile() {
                     label="Weight"
                     type="number"
                     min="0"
-                    value={petData.weight?.value}
+                    value={
+                      petData.weight?.value
+                    }
                     onChange={(e) =>
                       updateNestedField(
                         "weight",
@@ -1255,7 +1419,9 @@ function PetProfile() {
 
                   <Field
                     label="Weight Unit"
-                    value={petData.weight?.unit}
+                    value={
+                      petData.weight?.unit
+                    }
                     onChange={(e) =>
                       updateNestedField(
                         "weight",
@@ -1264,8 +1430,14 @@ function PetProfile() {
                       )
                     }
                     options={[
-                      { value: "kg", label: "Kilograms (kg)" },
-                      { value: "lb", label: "Pounds (lb)" },
+                      {
+                        value: "kg",
+                        label: "Kilograms (kg)",
+                      },
+                      {
+                        value: "lb",
+                        label: "Pounds (lb)",
+                      },
                     ]}
                     disabled={!isEditing}
                   />
@@ -1284,7 +1456,9 @@ function PetProfile() {
 
                   <Field
                     label="Microchip ID"
-                    value={petData.microchipId}
+                    value={
+                      petData.microchipId
+                    }
                     onChange={(e) =>
                       updateRootField(
                         "microchipId",
@@ -1296,7 +1470,10 @@ function PetProfile() {
 
                   <Field
                     label="Acquisition Source"
-                    value={petData.acquisition?.source}
+                    value={
+                      petData.acquisition
+                        ?.source
+                    }
                     onChange={(e) =>
                       updateNestedField(
                         "acquisition",
@@ -1346,7 +1523,10 @@ function PetProfile() {
                 <div className="grid gap-5 sm:grid-cols-2">
                   <Field
                     label="Current Health Status"
-                    value={petData.medical.healthStatus}
+                    value={
+                      petData.medical
+                        .healthStatus
+                    }
                     onChange={(e) =>
                       updateNestedField(
                         "medical",
@@ -1408,7 +1588,10 @@ function PetProfile() {
                   <ArrayEditor
                     title="Known Conditions"
                     icon={Activity}
-                    items={petData.medical.conditions}
+                    items={
+                      petData.medical
+                        .conditions
+                    }
                     onAdd={(value) =>
                       addArrayItem(
                         "medical",
@@ -1430,7 +1613,10 @@ function PetProfile() {
                   <ArrayEditor
                     title="Allergies"
                     icon={AlertTriangle}
-                    items={petData.medical.allergies}
+                    items={
+                      petData.medical
+                        .allergies
+                    }
                     onAdd={(value) =>
                       addArrayItem(
                         "medical",
@@ -1453,7 +1639,8 @@ function PetProfile() {
                     title="Previous Illnesses"
                     icon={ClipboardList}
                     items={
-                      petData.medical.previousIllnesses
+                      petData.medical
+                        .previousIllnesses
                     }
                     onAdd={(value) =>
                       addArrayItem(
@@ -1478,7 +1665,10 @@ function PetProfile() {
                   <RecordList
                     title="Current Medications"
                     icon={Pill}
-                    records={petData.medical.medications}
+                    records={
+                      petData.medical
+                        .medications
+                    }
                     type="medication"
                     onChange={(records) =>
                       updateNestedField(
@@ -1495,7 +1685,10 @@ function PetProfile() {
                   <RecordList
                     title="Surgeries / Procedures"
                     icon={Scissors}
-                    records={petData.medical.surgeries}
+                    records={
+                      petData.medical
+                        .surgeries
+                    }
                     type="surgery"
                     onChange={(records) =>
                       updateNestedField(
@@ -1542,10 +1735,22 @@ function PetProfile() {
 
                   <div className="grid gap-5 sm:grid-cols-2">
                     {[
-                      ["flea", "Flea Prevention"],
-                      ["tick", "Tick Prevention"],
-                      ["deworming", "Deworming"],
-                      ["heartworm", "Heartworm"],
+                      [
+                        "flea",
+                        "Flea Prevention",
+                      ],
+                      [
+                        "tick",
+                        "Tick Prevention",
+                      ],
+                      [
+                        "deworming",
+                        "Deworming",
+                      ],
+                      [
+                        "heartworm",
+                        "Heartworm",
+                      ],
                     ].map(([key, label]) => (
                       <div
                         key={key}
@@ -1559,7 +1764,8 @@ function PetProfile() {
                           <Field
                             label="Product"
                             value={
-                              petData.preventiveCare
+                              petData
+                                .preventiveCare
                                 .parasitePrevention[
                                 key
                               ]?.product
@@ -1576,11 +1782,14 @@ function PetProfile() {
                                     key
                                   ],
                                   product:
-                                    e.target.value,
+                                    e.target
+                                      .value,
                                 },
                               )
                             }
-                            disabled={!isEditing}
+                            disabled={
+                              !isEditing
+                            }
                           />
                         </div>
                       </div>
@@ -1600,7 +1809,10 @@ function PetProfile() {
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   <Field
                     label="Food Type"
-                    value={petData.nutrition.foodType}
+                    value={
+                      petData.nutrition
+                        .foodType
+                    }
                     onChange={(e) =>
                       updateNestedField(
                         "nutrition",
@@ -1643,7 +1855,10 @@ function PetProfile() {
 
                   <Field
                     label="Food Brand"
-                    value={petData.nutrition.foodBrand}
+                    value={
+                      petData.nutrition
+                        .foodBrand
+                    }
                     onChange={(e) =>
                       updateNestedField(
                         "nutrition",
@@ -1658,7 +1873,10 @@ function PetProfile() {
                     label="Meals Per Day"
                     type="number"
                     min="0"
-                    value={petData.nutrition.mealsPerDay}
+                    value={
+                      petData.nutrition
+                        .mealsPerDay
+                    }
                     onChange={(e) =>
                       updateNestedField(
                         "nutrition",
@@ -1671,7 +1889,10 @@ function PetProfile() {
 
                   <Field
                     label="Feeding Amount"
-                    value={petData.nutrition.feedingAmount}
+                    value={
+                      petData.nutrition
+                        .feedingAmount
+                    }
                     onChange={(e) =>
                       updateNestedField(
                         "nutrition",
@@ -1685,7 +1906,10 @@ function PetProfile() {
 
                   <Field
                     label="Feeding Schedule"
-                    value={petData.nutrition.feedingSchedule}
+                    value={
+                      petData.nutrition
+                        .feedingSchedule
+                    }
                     onChange={(e) =>
                       updateNestedField(
                         "nutrition",
@@ -1699,7 +1923,10 @@ function PetProfile() {
 
                   <Field
                     label="Water Intake"
-                    value={petData.nutrition.waterIntake}
+                    value={
+                      petData.nutrition
+                        .waterIntake
+                    }
                     onChange={(e) =>
                       updateNestedField(
                         "nutrition",
@@ -1718,11 +1945,13 @@ function PetProfile() {
                       },
                       {
                         value: "Less Than Usual",
-                        label: "Less Than Usual",
+                        label:
+                          "Less Than Usual",
                       },
                       {
                         value: "More Than Usual",
-                        label: "More Than Usual",
+                        label:
+                          "More Than Usual",
                       },
                     ]}
                     disabled={!isEditing}
@@ -1732,7 +1961,10 @@ function PetProfile() {
                 <div className="mt-5 grid gap-5 sm:grid-cols-2">
                   <TextArea
                     label="Treats"
-                    value={petData.nutrition.treats}
+                    value={
+                      petData.nutrition
+                        .treats
+                    }
                     onChange={(e) =>
                       updateNestedField(
                         "nutrition",
@@ -1746,7 +1978,10 @@ function PetProfile() {
 
                   <TextArea
                     label="Water Notes"
-                    value={petData.nutrition.waterNotes}
+                    value={
+                      petData.nutrition
+                        .waterNotes
+                    }
                     onChange={(e) =>
                       updateNestedField(
                         "nutrition",
@@ -1763,7 +1998,8 @@ function PetProfile() {
                   <Toggle
                     label="Recent diet change"
                     checked={
-                      petData.nutrition.recentDietChange
+                      petData.nutrition
+                        .recentDietChange
                     }
                     onChange={(value) =>
                       updateNestedField(
@@ -1788,7 +2024,10 @@ function PetProfile() {
                 <div className="grid gap-5 lg:grid-cols-2">
                   <ArrayEditor
                     title="Temperament"
-                    items={petData.behavior.temperament}
+                    items={
+                      petData.behavior
+                        .temperament
+                    }
                     onAdd={(value) =>
                       addArrayItem(
                         "behavior",
@@ -1852,7 +2091,8 @@ function PetProfile() {
                   <Toggle
                     label="Aggression"
                     checked={
-                      petData.behavior.aggression
+                      petData.behavior
+                        .aggression
                     }
                     onChange={(value) =>
                       updateNestedField(
@@ -1884,7 +2124,10 @@ function PetProfile() {
                 <div className="mt-5">
                   <TextArea
                     label="Behavior Notes"
-                    value={petData.behavior.notes}
+                    value={
+                      petData.behavior
+                        .notes
+                    }
                     onChange={(e) =>
                       updateNestedField(
                         "behavior",
@@ -1909,7 +2152,8 @@ function PetProfile() {
                   <Field
                     label="Activity Level"
                     value={
-                      petData.lifestyle.activityLevel
+                      petData.lifestyle
+                        .activityLevel
                     }
                     onChange={(e) =>
                       updateNestedField(
@@ -1945,7 +2189,10 @@ function PetProfile() {
 
                   <Field
                     label="Housing"
-                    value={petData.lifestyle.housing}
+                    value={
+                      petData.lifestyle
+                        .housing
+                    }
                     onChange={(e) =>
                       updateNestedField(
                         "lifestyle",
@@ -1981,7 +2228,8 @@ function PetProfile() {
                   <Field
                     label="Indoor / Outdoor"
                     value={
-                      petData.lifestyle.indoorOutdoor
+                      petData.lifestyle
+                        .indoorOutdoor
                     }
                     onChange={(e) =>
                       updateNestedField(
@@ -2014,7 +2262,8 @@ function PetProfile() {
                   <Field
                     label="Exercise Type"
                     value={
-                      petData.lifestyle.exerciseType
+                      petData.lifestyle
+                        .exerciseType
                     }
                     onChange={(e) =>
                       updateNestedField(
@@ -2030,7 +2279,8 @@ function PetProfile() {
                   <Field
                     label="Exercise Duration"
                     value={
-                      petData.lifestyle.exerciseDuration
+                      petData.lifestyle
+                        .exerciseDuration
                     }
                     onChange={(e) =>
                       updateNestedField(
@@ -2046,7 +2296,8 @@ function PetProfile() {
                   <Field
                     label="Exercise Frequency"
                     value={
-                      petData.lifestyle.exerciseFrequency
+                      petData.lifestyle
+                        .exerciseFrequency
                     }
                     onChange={(e) =>
                       updateNestedField(
@@ -2064,7 +2315,8 @@ function PetProfile() {
                   <Toggle
                     label="Other pets at home"
                     checked={
-                      petData.lifestyle.otherPets
+                      petData.lifestyle
+                        .otherPets
                     }
                     onChange={(value) =>
                       updateNestedField(
@@ -2079,7 +2331,8 @@ function PetProfile() {
                   <Toggle
                     label="Children at home"
                     checked={
-                      petData.lifestyle.childrenAtHome
+                      petData.lifestyle
+                        .childrenAtHome
                     }
                     onChange={(value) =>
                       updateNestedField(
@@ -2092,7 +2345,8 @@ function PetProfile() {
                   />
                 </div>
 
-                {petData.lifestyle.otherPets && (
+                {petData.lifestyle
+                  .otherPets && (
                   <div className="mt-5">
                     <TextArea
                       label="Other Pets Details"
@@ -2133,7 +2387,8 @@ function PetProfile() {
                   <TextArea
                     label="Exposure Notes"
                     value={
-                      petData.lifestyle.exposureNotes
+                      petData.lifestyle
+                        .exposureNotes
                     }
                     onChange={(e) =>
                       updateNestedField(
@@ -2274,7 +2529,8 @@ function PetProfile() {
                   <Toggle
                     label="Bad breath"
                     checked={
-                      petData.groomingDental.badBreath
+                      petData.groomingDental
+                        .badBreath
                     }
                     onChange={(value) =>
                       updateNestedField(
@@ -2471,7 +2727,8 @@ function PetProfile() {
                     label="Normal Bowel Movements"
                     value={
                       petData.healthMonitoring
-                        .baseline.bowelMovements
+                        .baseline
+                        .bowelMovements
                     }
                     onChange={(e) =>
                       updateDeepField(
@@ -2611,7 +2868,8 @@ function PetProfile() {
                   <ArrayEditor
                     title="Known Genetic Conditions"
                     items={
-                      petData.reproductiveFamily
+                      petData
+                        .reproductiveFamily
                         .geneticConditions
                     }
                     onAdd={(value) =>
@@ -2646,7 +2904,8 @@ function PetProfile() {
                   <VetContactCard
                     title="Primary Veterinarian"
                     contact={
-                      petData.emergency.primaryVet
+                      petData.emergency
+                        .primaryVet
                     }
                     onChange={(field, value) =>
                       updateDeepField(
@@ -2662,7 +2921,8 @@ function PetProfile() {
                   <VetContactCard
                     title="Emergency Veterinarian"
                     contact={
-                      petData.emergency.emergencyVet
+                      petData.emergency
+                        .emergencyVet
                     }
                     onChange={(field, value) =>
                       updateDeepField(
@@ -2680,7 +2940,8 @@ function PetProfile() {
                   <TextArea
                     label="Emergency Notes"
                     value={
-                      petData.emergency.emergencyNotes
+                      petData.emergency
+                        .emergencyNotes
                     }
                     onChange={(e) =>
                       updateNestedField(
@@ -2701,9 +2962,10 @@ function PetProfile() {
                   />
 
                   <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
-                    Keep emergency information accurate. Smart
-                    Paw AI can use this information as context,
-                    but it does not replace professional
+                    Keep emergency information
+                    accurate. Smart Paw AI can use
+                    this information as context, but
+                    it does not replace professional
                     veterinary care.
                   </p>
                 </div>
@@ -2721,10 +2983,11 @@ function PetProfile() {
                 <p className="text-sm font-bold">
                   Build the profile gradually
                 </p>
+
                 <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                  You don't need to fill every field at once.
-                  Add information as you learn more about your
-                  pet.
+                  You don't need to fill every field at
+                  once. Add information as you learn
+                  more about your pet.
                 </p>
               </div>
             </div>
@@ -2743,8 +3006,8 @@ function PetProfile() {
             </h2>
 
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">
-              Add your first pet to start building a personalized
-              health profile.
+              Add your first pet to start building a
+              personalized health profile.
             </p>
 
             <button
@@ -2783,14 +3046,22 @@ function ArrayEditor({
   return (
     <div className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
       <div className="flex items-center gap-2">
-        <Icon size={16} className="text-orange-500" />
-        <h3 className="text-sm font-extrabold">{title}</h3>
+        <Icon
+          size={16}
+          className="text-orange-500"
+        />
+
+        <h3 className="text-sm font-extrabold">
+          {title}
+        </h3>
       </div>
 
       <div className="mt-4 flex gap-2">
         <input
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) =>
+            setValue(e.target.value)
+          }
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -2821,12 +3092,15 @@ function ArrayEditor({
             >
               {typeof item === "string"
                 ? item
-                : item.name || item.description}
+                : item.name ||
+                  item.description}
 
               {!disabled && (
                 <button
                   type="button"
-                  onClick={() => onRemove(index)}
+                  onClick={() =>
+                    onRemove(index)
+                  }
                   className="text-orange-500 hover:text-red-500"
                 >
                   <X size={13} />
@@ -2861,6 +3135,7 @@ function RecordList({
           endDate: "",
         },
       ]);
+
       return;
     }
 
@@ -2874,6 +3149,7 @@ function RecordList({
           notes: "",
         },
       ]);
+
       return;
     }
 
@@ -2887,13 +3163,16 @@ function RecordList({
           notes: "",
         },
       ]);
+
       return;
     }
 
     onChange([
       ...records,
       {
-        date: new Date().toISOString().slice(0, 10),
+        date: new Date()
+          .toISOString()
+          .slice(0, 10),
         type: "",
         description: "",
       },
@@ -2902,19 +3181,27 @@ function RecordList({
 
   const removeRecord = (index) => {
     onChange(
-      records.filter((_, itemIndex) => itemIndex !== index),
+      records.filter(
+        (_, itemIndex) =>
+          itemIndex !== index,
+      ),
     );
   };
 
-  const updateRecord = (index, field, value) => {
+  const updateRecord = (
+    index,
+    field,
+    value,
+  ) => {
     onChange(
-      records.map((record, itemIndex) =>
-        itemIndex === index
-          ? {
-              ...record,
-              [field]: value,
-            }
-          : record,
+      records.map(
+        (record, itemIndex) =>
+          itemIndex === index
+            ? {
+                ...record,
+                [field]: value,
+              }
+            : record,
       ),
     );
   };
@@ -2923,8 +3210,14 @@ function RecordList({
     <div className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Icon size={16} className="text-orange-500" />
-          <h3 className="text-sm font-extrabold">{title}</h3>
+          <Icon
+            size={16}
+            className="text-orange-500"
+          />
+
+          <h3 className="text-sm font-extrabold">
+            {title}
+          </h3>
         </div>
 
         {!disabled && (
@@ -2947,13 +3240,17 @@ function RecordList({
         <div className="mt-4 space-y-4">
           {records.map((record, index) => (
             <div
-              key={record._id || index}
+              key={
+                record._id || index
+              }
               className="relative rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-[#18212B]"
             >
               {!disabled && (
                 <button
                   type="button"
-                  onClick={() => removeRecord(index)}
+                  onClick={() =>
+                    removeRecord(index)
+                  }
                   className="absolute right-3 top-3 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
                 >
                   <Trash2 size={15} />
@@ -2990,7 +3287,9 @@ function RecordList({
 
                   <Field
                     label="Frequency"
-                    value={record.frequency}
+                    value={
+                      record.frequency
+                    }
                     onChange={(e) =>
                       updateRecord(
                         index,
@@ -3060,7 +3359,9 @@ function RecordList({
                 <div className="grid gap-4 pr-8 sm:grid-cols-2">
                   <Field
                     label="Procedure"
-                    value={record.procedure}
+                    value={
+                      record.procedure
+                    }
                     onChange={(e) =>
                       updateRecord(
                         index,
@@ -3076,10 +3377,9 @@ function RecordList({
                     type="date"
                     value={
                       record.date
-                        ? String(record.date).slice(
-                            0,
-                            10,
-                          )
+                        ? String(
+                            record.date,
+                          ).slice(0, 10)
                         : ""
                     }
                     onChange={(e) =>
@@ -3124,7 +3424,9 @@ function RecordList({
                 <div className="grid gap-4 pr-8 sm:grid-cols-2">
                   <Field
                     label="Vaccine"
-                    value={record.vaccine}
+                    value={
+                      record.vaccine
+                    }
                     onChange={(e) =>
                       updateRecord(
                         index,
@@ -3197,10 +3499,9 @@ function RecordList({
                     type="date"
                     value={
                       record.date
-                        ? String(record.date).slice(
-                            0,
-                            10,
-                          )
+                        ? String(
+                            record.date,
+                          ).slice(0, 10)
                         : ""
                     }
                     onChange={(e) =>
@@ -3230,7 +3531,9 @@ function RecordList({
                   <div className="sm:col-span-2">
                     <TextArea
                       label="Description"
-                      value={record.description}
+                      value={
+                        record.description
+                      }
                       onChange={(e) =>
                         updateRecord(
                           index,
@@ -3261,8 +3564,14 @@ function VetContactCard({
   return (
     <div className="rounded-2xl border border-slate-200 p-5 dark:border-white/10">
       <div className="mb-4 flex items-center gap-2">
-        <MapPin size={17} className="text-orange-500" />
-        <h3 className="font-extrabold">{title}</h3>
+        <MapPin
+          size={17}
+          className="text-orange-500"
+        />
+
+        <h3 className="font-extrabold">
+          {title}
+        </h3>
       </div>
 
       <div className="grid gap-4">
@@ -3270,7 +3579,10 @@ function VetContactCard({
           label="Veterinarian Name"
           value={contact.name}
           onChange={(e) =>
-            onChange("name", e.target.value)
+            onChange(
+              "name",
+              e.target.value,
+            )
           }
           disabled={disabled}
         />
@@ -3279,7 +3591,10 @@ function VetContactCard({
           label="Clinic"
           value={contact.clinic}
           onChange={(e) =>
-            onChange("clinic", e.target.value)
+            onChange(
+              "clinic",
+              e.target.value,
+            )
           }
           disabled={disabled}
         />
@@ -3288,7 +3603,10 @@ function VetContactCard({
           label="Phone"
           value={contact.phone}
           onChange={(e) =>
-            onChange("phone", e.target.value)
+            onChange(
+              "phone",
+              e.target.value,
+            )
           }
           disabled={disabled}
         />

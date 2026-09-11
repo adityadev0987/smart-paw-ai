@@ -132,6 +132,38 @@ export default function AIHealthCheck() {
   };
 
   /* ----------------------------------------
+     Save latest final AI health check
+     for Recommendation page
+  ---------------------------------------- */
+  const saveLatestHealthCheck = (data) => {
+    if (!data || data.status !== "FINAL") {
+      return;
+    }
+
+    const healthCheckData = {
+      ...data,
+      petId: selectedPetId,
+      petName: getPetName(selectedPet),
+      symptoms: symptoms.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    localStorage.setItem(
+      "smartPawLatestHealthCheck",
+      JSON.stringify(healthCheckData),
+    );
+
+    window.dispatchEvent(
+      new CustomEvent(
+        "smartPawHealthCheckUpdated",
+        {
+          detail: healthCheckData,
+        },
+      ),
+    );
+  };
+
+  /* ----------------------------------------
      Reset / New Check
   ---------------------------------------- */
   const resetCheck = () => {
@@ -223,6 +255,9 @@ export default function AIHealthCheck() {
       } else if (data.status === "FINAL") {
         setFollowUpQuestion("");
         setAssessment(data);
+
+        // Save final result for Recommendation page
+        saveLatestHealthCheck(data);
       } else {
         setError(
           "The AI returned an unexpected response. Please try again.",
@@ -327,6 +362,9 @@ export default function AIHealthCheck() {
       } else if (data.status === "FINAL") {
         setFollowUpQuestion("");
         setAssessment(data);
+
+        // Save final result for Recommendation page
+        saveLatestHealthCheck(data);
       } else {
         setError(
           "The AI returned an unexpected response. Please try again.",
@@ -533,7 +571,7 @@ export default function AIHealthCheck() {
             ACTIVE FULL SCREEN WORKSPACE
         ====================================== */}
         {hasStarted && (
-          <section className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-[35%_65%]">
+          <section className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-[minmax(0,35fr)_minmax(0,65fr)]">
             {/* ==================================
                 LEFT — PET & SYMPTOMS
             ================================== */}
@@ -555,9 +593,9 @@ export default function AIHealthCheck() {
                 </div>
               </div>
 
-              {/* Left content */}
-              <div className="min-h-0 flex-1 overflow-hidden p-5">
-                <div className="flex h-full min-h-0 flex-col">
+              {/* Left content — SCROLL ENABLED */}
+              <div className="min-h-0 flex-1 overflow-y-auto p-5">
+                <div className="flex min-h-full flex-col">
                   {/* Selected pet */}
                   {selectedPet && (
                     <div className="mb-4 shrink-0 rounded-2xl border border-orange-200 bg-orange-50/60 p-3.5 dark:border-orange-500/15 dark:bg-orange-500/5">
@@ -786,7 +824,6 @@ export default function AIHealthCheck() {
                 conversation.length > 0 &&
                 !assessment && (
                   <div className="flex min-h-0 flex-1 flex-col">
-                    {/* ONLY THIS AREA SCROLLS */}
                     <div
                       ref={chatRef}
                       className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6"
@@ -834,7 +871,6 @@ export default function AIHealthCheck() {
                         },
                       )}
 
-                      {/* AI typing */}
                       {answerLoading && (
                         <div className="flex gap-3">
                           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white">
@@ -844,16 +880,13 @@ export default function AIHealthCheck() {
                           <div className="rounded-2xl rounded-bl-md border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-[#18212b]">
                             <div className="flex items-center gap-1.5">
                               <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-orange-500 [animation-delay:-0.3s]" />
-
                               <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-orange-500 [animation-delay:-0.15s]" />
-
                               <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-orange-500" />
                             </div>
                           </div>
                         </div>
                       )}
 
-                      {/* Error inside chat */}
                       {error && (
                         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-500/20 dark:bg-red-500/10">
                           <div className="flex gap-3">
@@ -876,9 +909,6 @@ export default function AIHealthCheck() {
                       )}
                     </div>
 
-                    {/* ==================================
-                        FIXED CHAT COMPOSER
-                    ================================== */}
                     {followUpQuestion && (
                       <form
                         onSubmit={
@@ -934,7 +964,6 @@ export default function AIHealthCheck() {
                   ref={chatRef}
                   className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6"
                 >
-                  {/* Severity */}
                   <div
                     className={`mb-5 flex items-center gap-3 rounded-2xl border p-4 ${currentSeverity.wrapper}`}
                   >
@@ -961,7 +990,6 @@ export default function AIHealthCheck() {
                     </div>
                   </div>
 
-                  {/* Assessment */}
                   <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-[#18212b]">
                     <div className="mb-3 flex items-center gap-2">
                       <ClipboardList
@@ -980,7 +1008,6 @@ export default function AIHealthCheck() {
                     </p>
                   </div>
 
-                  {/* Next steps */}
                   <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-[#111820]">
                     <div className="mb-4 flex items-center gap-2">
                       <ArrowRight
@@ -1020,7 +1047,6 @@ export default function AIHealthCheck() {
                     )}
                   </div>
 
-                  {/* Disclaimer */}
                   <div className="mt-5 flex gap-3 rounded-2xl border border-orange-200 bg-orange-50 p-4 dark:border-orange-500/20 dark:bg-orange-500/5">
                     <ShieldCheck
                       size={18}
@@ -1037,9 +1063,6 @@ export default function AIHealthCheck() {
                 </div>
               )}
 
-              {/* ==================================
-                  ERROR / EMPTY AI PANEL
-              ================================== */}
               {!loading &&
                 error &&
                 conversation.length === 0 &&
@@ -1090,7 +1113,6 @@ function HealthInputForm({
       onSubmit={onSubmit}
       className="space-y-5"
     >
-      {/* Pet */}
       <div>
         <label className="mb-2 block text-sm font-semibold">
           Select Pet
@@ -1137,7 +1159,6 @@ function HealthInputForm({
         </div>
       </div>
 
-      {/* Pet preview */}
       {selectedPet && (
         <div className="rounded-2xl border border-orange-200 bg-orange-50/70 p-4 dark:border-orange-500/15 dark:bg-orange-500/5">
           <div className="flex items-center gap-3">
@@ -1162,7 +1183,6 @@ function HealthInputForm({
         </div>
       )}
 
-      {/* Symptoms */}
       <div>
         <div className="mb-2 flex items-center justify-between">
           <label className="text-sm font-semibold">
@@ -1194,7 +1214,6 @@ function HealthInputForm({
         </p>
       </div>
 
-      {/* Error */}
       {error && (
         <div className="flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
           <AlertTriangle
@@ -1206,7 +1225,6 @@ function HealthInputForm({
         </div>
       )}
 
-      {/* Start */}
       <button
         type="submit"
         disabled={loading}

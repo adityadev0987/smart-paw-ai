@@ -7,15 +7,17 @@ function getGeminiClient() {
 }
 
 /*
- * Small delay helper used for Gemini retries.
+ * Small delay helper used for temporary Gemini retries.
  */
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /*
- * Gemini can temporarily return 429/500/503 errors.
- * Retry those errors before giving up.
+ * Retry only temporary server errors.
+ *
+ * 429 is NOT retried because it can mean the project's
+ * quota/rate limit has been exhausted.
  */
 async function generateGeminiResponse(ai, requestConfig) {
   const maxAttempts = 3;
@@ -26,22 +28,12 @@ async function generateGeminiResponse(ai, requestConfig) {
     } catch (error) {
       const status = error?.status;
 
-      const isRetryable = status === 429 || status === 500 || status === 503;
+      const isRetryable = status === 500 || status === 503;
 
-      /*
-       * If the error is not temporary, or all attempts are exhausted,
-       * immediately throw the error.
-       */
       if (!isRetryable || attempt === maxAttempts) {
         throw error;
       }
 
-      /*
-       * Exponential backoff:
-       *
-       * Attempt 1 fails → wait 1 second
-       * Attempt 2 fails → wait 2 seconds
-       */
       const delay = attempt * 1000;
 
       console.warn(
@@ -253,6 +245,33 @@ Do not say:
 "Nothing to worry about."
 
 ==================================================
+WATER AND FOOD SAFETY
+==================================================
+
+Do NOT recommend blanket fasting or withholding water.
+
+Do NOT tell the owner to completely withhold water.
+
+If vomiting or nausea is present:
+
+- Do not force food or water.
+- If drinking repeatedly triggers vomiting, recommend prompt veterinary
+  evaluation because dehydration can become a concern.
+- For severe or repeated vomiting, prioritize veterinary assessment.
+
+==================================================
+PET IDENTITY
+==================================================
+
+Use the pet's provided name.
+
+Use the pet's provided gender consistently.
+
+Do not change or guess the pet's gender.
+
+If gender is missing, use neutral wording.
+
+==================================================
 FINAL ASSESSMENT
 ==================================================
 
@@ -402,7 +421,8 @@ For FINAL:
     const ai = getGeminiClient();
 
     const response = await generateGeminiResponse(ai, {
-      model: "gemini-3.6-flash",
+      // Current Smart Paw AI model
+      model: "gemini-3.1-flash-lite",
 
       contents: userPrompt,
 
@@ -413,15 +433,9 @@ For FINAL:
 
         maxOutputTokens: 1800,
 
-        temperature: 0.2,
-
-        maxOutputTokens: 1800,
-
         thinkingConfig: {
           thinkingBudget: 256,
         },
-
-        responseMimeType: "application/json",
 
         responseMimeType: "application/json",
 
@@ -454,14 +468,20 @@ For FINAL:
             },
           },
 
-          required: ["status", "question", "assessment", "nextSteps", "urgent"],
+          required: [
+            "status",
+            "question",
+            "assessment",
+            "nextSteps",
+            "urgent",
+          ],
         },
       },
     });
 
     const content = response.text?.trim() || "";
 
-    console.log("AI model: Gemini 3.6 Flash");
+    console.log("AI model: Gemini 3.1 Flash-Lite");
     console.log("AI response content length:", content.length);
     console.log("Gemini response:", JSON.stringify(response, null, 2));
 
@@ -477,7 +497,6 @@ For FINAL:
       parsed = JSON.parse(content);
     } catch (error) {
       console.error("Failed to parse Gemini response:", content);
-
       console.error("AI parsing error:", error);
 
       throw new Error("Invalid JSON returned by Gemini.");
@@ -495,7 +514,7 @@ For FINAL:
         assessment: `${pet.name}'s symptoms deserve continued attention. Several different conditions can produce similar symptoms, and the available information is not enough to determine the underlying cause from chat alone. Continue monitoring the reported symptoms and watch closely for worsening behavior, changes in appetite or water intake, increasing weakness, or other warning signs.`,
 
         nextSteps: [
-          "Monitor your pet's symptoms and overall behavior closely.",
+          "Monitor your pet's symptoms and overall behavior.",
 
           "Keep track of appetite, water intake, energy, and symptom frequency.",
 
@@ -556,7 +575,9 @@ For FINAL:
       const invalid =
         !assessment ||
         assessment.length < 150 ||
-        invalidAssessmentPatterns.some((pattern) => pattern.test(assessment));
+        invalidAssessmentPatterns.some((pattern) =>
+          pattern.test(assessment),
+        );
 
       if (!invalid) {
         return {
