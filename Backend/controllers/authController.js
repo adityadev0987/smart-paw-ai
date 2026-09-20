@@ -2,6 +2,10 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
+// --------------------------------------------------
+// REGISTER
+// --------------------------------------------------
+
 export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -33,7 +37,10 @@ export const register = async (req, res) => {
       });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(
+      password,
+      10,
+    );
 
     const user = await User.create({
       name: name.trim(),
@@ -41,7 +48,7 @@ export const register = async (req, res) => {
       password: hashedPassword,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "Account created successfully.",
       data: {
@@ -53,12 +60,16 @@ export const register = async (req, res) => {
   } catch (error) {
     console.error("Register error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to create account.",
     });
   }
 };
+
+// --------------------------------------------------
+// LOGIN
+// --------------------------------------------------
 
 export const login = async (req, res) => {
   try {
@@ -106,7 +117,7 @@ export const login = async (req, res) => {
       },
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Login successful.",
       data: {
@@ -121,9 +132,46 @@ export const login = async (req, res) => {
   } catch (error) {
     console.error("Login error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to login.",
+    });
+  }
+};
+
+// --------------------------------------------------
+// GET CURRENT USER
+// --------------------------------------------------
+
+export const getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select(
+      "-password",
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get current user error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch current user.",
     });
   }
 };

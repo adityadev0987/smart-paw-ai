@@ -111,7 +111,7 @@ const petSchema = new mongoose.Schema(
     species: {
       type: String,
       required: false,
-      default:"Unknown",
+      default: "Unknown",
       trim: true,
     },
 
@@ -139,12 +139,7 @@ const petSchema = new mongoose.Schema(
 
     reproductiveStatus: {
       type: String,
-      enum: [
-        "Intact",
-        "Neutered",
-        "Spayed",
-        "Unknown",
-      ],
+      enum: ["Intact", "Neutered", "Spayed", "Unknown"],
       default: "Unknown",
     },
 
@@ -174,14 +169,7 @@ const petSchema = new mongoose.Schema(
       date: Date,
       source: {
         type: String,
-        enum: [
-          "Adopted",
-          "Breeder",
-          "Rescue",
-          "Stray",
-          "Other",
-          "Unknown",
-        ],
+        enum: ["Adopted", "Breeder", "Rescue", "Stray", "Other", "Unknown"],
       },
     },
 
@@ -275,16 +263,8 @@ const petSchema = new mongoose.Schema(
     nutrition: {
       foodType: {
         type: String,
-        enum: [
-          "",
-          "Dry",
-          "Wet",
-          "Raw",
-          "Homemade",
-          "Mixed",
-          "Other",
-        ],
-        default:"",
+        enum: ["", "Dry", "Wet", "Raw", "Homemade", "Mixed", "Other"],
+        default: "",
       },
 
       foodBrand: {
@@ -324,12 +304,7 @@ const petSchema = new mongoose.Schema(
 
       waterIntake: {
         type: String,
-        enum: [
-          "Normal",
-          "Less Than Usual",
-          "More Than Usual",
-          "Unknown",
-        ],
+        enum: ["Normal", "Less Than Usual", "More Than Usual", "Unknown"],
         default: "Unknown",
       },
 
@@ -384,13 +359,7 @@ const petSchema = new mongoose.Schema(
     lifestyle: {
       activityLevel: {
         type: String,
-        enum: [
-          "Low",
-          "Moderate",
-          "High",
-          "Very High",
-          "Unknown",
-        ],
+        enum: ["Low", "Moderate", "High", "Very High", "Unknown"],
         default: "Unknown",
       },
 
@@ -411,23 +380,13 @@ const petSchema = new mongoose.Schema(
 
       housing: {
         type: String,
-        enum: [
-          "Apartment",
-          "House",
-          "Farm",
-          "Other",
-          "Unknown",
-        ],
+        enum: ["Apartment", "House", "Farm", "Other", "Unknown"],
+        default: "Unknown",
       },
 
       indoorOutdoor: {
         type: String,
-        enum: [
-          "Indoor",
-          "Outdoor",
-          "Both",
-          "Unknown",
-        ],
+        enum: ["Indoor", "Outdoor", "Both", "Unknown"],
         default: "Unknown",
       },
 

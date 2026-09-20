@@ -1,7 +1,24 @@
 const API_BASE_URL = "http://localhost:5000/api";
 
+// --------------------------------------------------
+// Authentication helpers
+// --------------------------------------------------
+
+function getToken() {
+  return localStorage.getItem("smartPawToken");
+}
+
+function clearExpiredAuthentication() {
+  localStorage.removeItem("smartPawToken");
+  localStorage.removeItem("smartPawUser");
+
+  window.dispatchEvent(
+    new CustomEvent("smartPawAuthExpired"),
+  );
+}
+
 function getAuthHeaders() {
-  const token = localStorage.getItem("smartPawToken");
+  const token = getToken();
 
   return token
     ? {
@@ -10,115 +27,213 @@ function getAuthHeaders() {
     : {};
 }
 
-export async function getPets() {
-  const response = await fetch(`${API_BASE_URL}/pets`, {
-    headers: {
-      ...getAuthHeaders(),
-    },
-  });
+// --------------------------------------------------
+// Generic response handler
+// --------------------------------------------------
 
-  const result = await response.json();
+async function parseResponse(response) {
+  let result = null;
 
-  if (!response.ok) {
-    throw new Error(result.message || "Failed to fetch pets.");
+  try {
+    result = await response.json();
+  } catch {
+    result = null;
   }
 
-  return result.data;
-}
+  // Token expired / unauthorized
+  if (response.status === 401) {
+    const message =
+      result?.message ||
+      "Authentication required.";
 
-export async function getPetById(id) {
-  const response = await fetch(`${API_BASE_URL}/pets/${id}`, {
-    headers: {
-      ...getAuthHeaders(),
-    },
-  });
+    if (
+      message.toLowerCase().includes("token") ||
+      message.toLowerCase().includes("expired") ||
+      message.toLowerCase().includes("authentication") ||
+      message.toLowerCase().includes("unauthorized")
+    ) {
+      clearExpiredAuthentication();
+    }
 
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(result.message || "Failed to fetch pet.");
+    throw new Error(message);
   }
 
-  return result.data;
-}
-
-export async function updatePet(id, petData) {
-  const response = await fetch(`${API_BASE_URL}/pets/${id}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify(petData),
-  });
-
-  const result = await response.json();
-
   if (!response.ok) {
-    throw new Error(result.message || "Failed to update pet.");
-  }
-
-  return result.data;
-}
-
-export async function createPet(petData) {
-  const response = await fetch(`${API_BASE_URL}/pets`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify(petData),
-  });
-
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(result.message || "Failed to create pet.");
-  }
-
-  return result.data;
-}
-
-export async function deletePet(id) {
-  const response = await fetch(`${API_BASE_URL}/pets/${id}`, {
-    method: "DELETE",
-    headers: {
-      ...getAuthHeaders(),
-    },
-  });
-
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(result.message || "Failed to delete pet.");
+    throw new Error(
+      result?.message ||
+        "Something went wrong. Please try again.",
+    );
   }
 
   return result;
 }
 
-export async function getHealthRecords(petId) {
+// --------------------------------------------------
+// Pets
+// --------------------------------------------------
+
+export async function getPets() {
   const response = await fetch(
-    `${API_BASE_URL}/health-records?petId=${petId}`,
+    `${API_BASE_URL}/pets`,
     {
+      method: "GET",
       headers: {
         ...getAuthHeaders(),
       },
     },
   );
 
-  const result = await response.json();
+  const result = await parseResponse(response);
 
-  if (!response.ok) {
+  return result?.data || [];
+}
+
+export async function getPetById(id) {
+  if (!id) {
+    throw new Error("Pet ID is required.");
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/pets/${id}`,
+    {
+      method: "GET",
+      headers: {
+        ...getAuthHeaders(),
+      },
+    },
+  );
+
+  const result = await parseResponse(response);
+
+  return result?.data;
+}
+
+export async function createPet(petData) {
+  const token = getToken();
+
+  if (!token) {
     throw new Error(
-      result.message || "Failed to fetch health records.",
+      "Please login before creating a pet.",
     );
   }
 
-  return result.data;
+  const response = await fetch(
+    `${API_BASE_URL}/pets`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(petData),
+    },
+  );
+
+  const result = await parseResponse(response);
+
+  return result?.data;
 }
 
-export async function createHealthRecord(recordData) {
+export async function updatePet(
+  id,
+  petData,
+) {
+  if (!id) {
+    throw new Error("Pet ID is required.");
+  }
+
+  const token = getToken();
+
+  if (!token) {
+    throw new Error(
+      "Please login before updating a pet.",
+    );
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/pets/${id}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(petData),
+    },
+  );
+
+  const result = await parseResponse(response);
+
+  return result?.data;
+}
+
+export async function deletePet(id) {
+  if (!id) {
+    throw new Error("Pet ID is required.");
+  }
+
+  const token = getToken();
+
+  if (!token) {
+    throw new Error(
+      "Please login before deleting a pet.",
+    );
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/pets/${id}`,
+    {
+      method: "DELETE",
+      headers: {
+        ...getAuthHeaders(),
+      },
+    },
+  );
+
+  const result = await parseResponse(response);
+
+  return result;
+}
+
+// --------------------------------------------------
+// Health Records
+// --------------------------------------------------
+
+export async function getHealthRecords(
+  petId,
+) {
+  if (!petId) {
+    throw new Error(
+      "Pet ID is required.",
+    );
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/health-records?petId=${petId}`,
+    {
+      method: "GET",
+      headers: {
+        ...getAuthHeaders(),
+      },
+    },
+  );
+
+  const result = await parseResponse(response);
+
+  return result?.data || [];
+}
+
+export async function createHealthRecord(
+  recordData,
+) {
+  const token = getToken();
+
+  if (!token) {
+    throw new Error(
+      "Please login before creating a health record.",
+    );
+  }
+
   const response = await fetch(
     `${API_BASE_URL}/health-records`,
     {
@@ -131,18 +246,29 @@ export async function createHealthRecord(recordData) {
     },
   );
 
-  const result = await response.json();
+  const result = await parseResponse(response);
 
-  if (!response.ok) {
+  return result?.data;
+}
+
+export async function updateHealthRecord(
+  id,
+  recordData,
+) {
+  if (!id) {
     throw new Error(
-      result.message || "Failed to create health record.",
+      "Health record ID is required.",
     );
   }
 
-  return result.data;
-}
+  const token = getToken();
 
-export async function updateHealthRecord(id, recordData) {
+  if (!token) {
+    throw new Error(
+      "Please login before updating a health record.",
+    );
+  }
+
   const response = await fetch(
     `${API_BASE_URL}/health-records/${id}`,
     {
@@ -155,18 +281,28 @@ export async function updateHealthRecord(id, recordData) {
     },
   );
 
-  const result = await response.json();
+  const result = await parseResponse(response);
 
-  if (!response.ok) {
+  return result?.data;
+}
+
+export async function deleteHealthRecord(
+  id,
+) {
+  if (!id) {
     throw new Error(
-      result.message || "Failed to update health record.",
+      "Health record ID is required.",
     );
   }
 
-  return result.data;
-}
+  const token = getToken();
 
-export async function deleteHealthRecord(id) {
+  if (!token) {
+    throw new Error(
+      "Please login before deleting a health record.",
+    );
+  }
+
   const response = await fetch(
     `${API_BASE_URL}/health-records/${id}`,
     {
@@ -177,39 +313,48 @@ export async function deleteHealthRecord(id) {
     },
   );
 
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      result.message || "Failed to delete health record.",
-    );
-  }
+  const result = await parseResponse(response);
 
   return result;
 }
 
+// --------------------------------------------------
+// Tasks
+// --------------------------------------------------
+
 export async function getTasks(petId) {
+  if (!petId) {
+    throw new Error(
+      "Pet ID is required.",
+    );
+  }
+
   const response = await fetch(
     `${API_BASE_URL}/tasks?petId=${petId}`,
     {
+      method: "GET",
       headers: {
         ...getAuthHeaders(),
       },
     },
   );
 
-  const result = await response.json();
+  const result = await parseResponse(response);
 
-  if (!response.ok) {
+  return result?.data || [];
+}
+
+export async function createTask(
+  taskData,
+) {
+  const token = getToken();
+
+  if (!token) {
     throw new Error(
-      result.message || "Failed to fetch tasks.",
+      "Please login before creating a task.",
     );
   }
 
-  return result.data;
-}
-
-export async function createTask(taskData) {
   const response = await fetch(
     `${API_BASE_URL}/tasks`,
     {
@@ -222,18 +367,29 @@ export async function createTask(taskData) {
     },
   );
 
-  const result = await response.json();
+  const result = await parseResponse(response);
 
-  if (!response.ok) {
+  return result?.data;
+}
+
+export async function updateTask(
+  id,
+  taskData,
+) {
+  if (!id) {
     throw new Error(
-      result.message || "Failed to create task.",
+      "Task ID is required.",
     );
   }
 
-  return result.data;
-}
+  const token = getToken();
 
-export async function updateTask(id, taskData) {
+  if (!token) {
+    throw new Error(
+      "Please login before updating a task.",
+    );
+  }
+
   const response = await fetch(
     `${API_BASE_URL}/tasks/${id}`,
     {
@@ -243,20 +399,29 @@ export async function updateTask(id, taskData) {
         ...getAuthHeaders(),
       },
       body: JSON.stringify(taskData),
-  });
+    },
+  );
 
-  const result = await response.json();
+  const result = await parseResponse(response);
 
-  if (!response.ok) {
-    throw new Error(
-      result.message || "Failed to update task.",
-    );
-  }
-
-  return result.data;
+  return result?.data;
 }
 
 export async function deleteTask(id) {
+  if (!id) {
+    throw new Error(
+      "Task ID is required.",
+    );
+  }
+
+  const token = getToken();
+
+  if (!token) {
+    throw new Error(
+      "Please login before deleting a task.",
+    );
+  }
+
   const response = await fetch(
     `${API_BASE_URL}/tasks/${id}`,
     {
@@ -267,13 +432,7 @@ export async function deleteTask(id) {
     },
   );
 
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      result.message || "Failed to delete task.",
-    );
-  }
+  const result = await parseResponse(response);
 
   return result;
 }

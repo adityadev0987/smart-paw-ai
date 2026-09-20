@@ -8,7 +8,7 @@ import BreedInsights from "./pages/BreedInsights"
 import VetLocator from "./pages/VetLocator"
 import Dashboard from "./pages/Dashboard"
 import PetProfile from "./pages/PetProfile"
-import HealthRecords from "./pages/HealthRecords"
+import Community from "./pages/Community"
 import Recommendation from "./pages/Recommendation"
 import Login from "./pages/Login"
 import Register from "./pages/Register"
@@ -33,7 +33,7 @@ function AppContent() {
         <Route path="/vet-locator" element={<VetLocator />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/pet-profile" element={<PetProfile />} />
-        <Route path="/health-records" element={<HealthRecords />} />
+        <Route path="/health-records" element={<Community />} />
         <Route path="/recommendation" element={<Recommendation />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />

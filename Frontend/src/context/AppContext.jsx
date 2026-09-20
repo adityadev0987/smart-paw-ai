@@ -1,16 +1,32 @@
-import { createContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useEffect,
+  useState,
+} from "react";
+
 import { getPets } from "../services/api";
 
 export const AppContext = createContext(null);
 
+const API_BASE_URL = "http://localhost:5000/api";
+
 export function AppProvider({ children }) {
+  // --------------------------------------------------
+  // Pets
+  // --------------------------------------------------
+
   const [pets, setPets] = useState([]);
   const [currentPet, setCurrentPet] = useState(null);
   const [isPetLoading, setIsPetLoading] = useState(true);
 
+  // --------------------------------------------------
   // Theme
+  // --------------------------------------------------
+
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem("smartPawTheme") || "light";
+    return (
+      localStorage.getItem("smartPawTheme") || "light"
+    );
   });
 
   useEffect(() => {
@@ -24,13 +40,19 @@ export function AppProvider({ children }) {
 
   const toggleTheme = () => {
     setTheme((currentTheme) =>
-      currentTheme === "light" ? "dark" : "light",
+      currentTheme === "light"
+        ? "dark"
+        : "light",
     );
   };
 
+  // --------------------------------------------------
   // User
+  // --------------------------------------------------
+
   const [currentUser, setCurrentUser] = useState(() => {
-    const storedUser = localStorage.getItem("smartPawUser");
+    const storedUser =
+      localStorage.getItem("smartPawUser");
 
     if (!storedUser) {
       return null;
@@ -44,17 +66,129 @@ export function AppProvider({ children }) {
     }
   });
 
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return Boolean(localStorage.getItem("smartPawToken"));
-  });
+  const [isAuthenticated, setIsAuthenticated] =
+    useState(() => {
+      return Boolean(
+        localStorage.getItem("smartPawToken"),
+      );
+    });
 
+  const [isAuthChecking, setIsAuthChecking] =
+    useState(true);
+
+  // --------------------------------------------------
+  // Clear authentication
+  // --------------------------------------------------
+
+  const clearAuthentication = () => {
+    localStorage.removeItem("smartPawToken");
+    localStorage.removeItem("smartPawUser");
+
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+
+    setPets([]);
+    setCurrentPet(null);
+  };
+
+  // --------------------------------------------------
+  // Verify stored token when app starts
+  // --------------------------------------------------
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const verifyStoredToken = async () => {
+      const token =
+        localStorage.getItem("smartPawToken");
+
+      // No token means user is logged out.
+      if (!token) {
+        if (!isMounted) return;
+
+        setIsAuthenticated(false);
+        setCurrentUser(null);
+        setIsAuthChecking(false);
+
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/auth/me`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            "Stored authentication token is invalid.",
+          );
+        }
+
+        const result = await response.json();
+
+        if (
+          !result.success ||
+          !result.data?.user
+        ) {
+          throw new Error(
+            "Invalid authentication response.",
+          );
+        }
+
+        if (!isMounted) return;
+
+        const user = result.data.user;
+
+        localStorage.setItem(
+          "smartPawUser",
+          JSON.stringify(user),
+        );
+
+        setCurrentUser(user);
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.warn(
+          "Stored authentication is no longer valid.",
+        );
+
+        if (!isMounted) return;
+
+        clearAuthentication();
+      } finally {
+        if (isMounted) {
+          setIsAuthChecking(false);
+        }
+      }
+    };
+
+    verifyStoredToken();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // --------------------------------------------------
   // Load pets
+  // --------------------------------------------------
+
   useEffect(() => {
     const loadPets = async () => {
+      if (isAuthChecking) {
+        return;
+      }
+
       if (!isAuthenticated) {
         setPets([]);
         setCurrentPet(null);
         setIsPetLoading(false);
+
         return;
       }
 
@@ -63,32 +197,44 @@ export function AppProvider({ children }) {
 
         const data = await getPets();
 
-        if (Array.isArray(data) && data.length > 0) {
+        if (
+          Array.isArray(data) &&
+          data.length > 0
+        ) {
           const formattedPets = data.map((pet) => ({
             ...pet,
-            id: pet._id,
+            id: pet._id || pet.id,
           }));
 
           setPets(formattedPets);
 
-          // Restore previously selected pet if it still exists
-          const savedPetId =
-            localStorage.getItem("smartPawCurrentPetId");
+          setCurrentPet((existingPet) => {
+            if (!existingPet) {
+              return formattedPets[0];
+            }
 
-          const savedPet = savedPetId
-            ? formattedPets.find(
-                (pet) => pet.id === savedPetId,
-              )
-            : null;
+            const updatedCurrentPet =
+              formattedPets.find(
+                (pet) =>
+                  pet.id === existingPet.id ||
+                  pet._id === existingPet._id,
+              );
 
-          setCurrentPet(savedPet || formattedPets[0]);
+            return (
+              updatedCurrentPet ||
+              formattedPets[0]
+            );
+          });
         } else {
           setPets([]);
           setCurrentPet(null);
-          localStorage.removeItem("smartPawCurrentPetId");
         }
       } catch (error) {
-        console.error("Failed to load pets:", error);
+        console.error(
+          "Failed to load pets:",
+          error,
+        );
+
         setPets([]);
         setCurrentPet(null);
       } finally {
@@ -97,33 +243,17 @@ export function AppProvider({ children }) {
     };
 
     loadPets();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isAuthChecking]);
 
-  // Select current pet
-  const selectPet = (pet) => {
+  // --------------------------------------------------
+  // Add pet
+  // --------------------------------------------------
+
+  const addPet = (pet) => {
     if (!pet) {
-      setCurrentPet(null);
-      localStorage.removeItem("smartPawCurrentPetId");
       return;
     }
 
-    const formattedPet = {
-      ...pet,
-      id: pet._id || pet.id,
-    };
-
-    setCurrentPet(formattedPet);
-
-    if (formattedPet.id) {
-      localStorage.setItem(
-        "smartPawCurrentPetId",
-        formattedPet.id,
-      );
-    }
-  };
-
-  // Add pet to global state
-  const addPet = (pet) => {
     const formattedPet = {
       ...pet,
       id: pet._id || pet.id,
@@ -134,79 +264,105 @@ export function AppProvider({ children }) {
       formattedPet,
     ]);
 
-    selectPet(formattedPet);
+    setCurrentPet(formattedPet);
   };
 
-  // Update pet in global state
-  const updatePet = (updatedPet) => {
+  // --------------------------------------------------
+  // Update pet in context
+  // --------------------------------------------------
+
+  const updatePetInContext = (updatedPet) => {
+    if (!updatedPet) {
+      return;
+    }
+
+    const petId =
+      updatedPet._id || updatedPet.id;
+
     const formattedPet = {
       ...updatedPet,
-      id: updatedPet._id || updatedPet.id,
+      id: petId,
     };
 
     setPets((currentPets) =>
-      currentPets.map((pet) =>
-        pet.id === formattedPet.id
-          ? formattedPet
-          : pet,
-      ),
+      currentPets.map((pet) => {
+        const existingPetId =
+          pet._id || pet.id;
+
+        if (existingPetId === petId) {
+          return {
+            ...pet,
+            ...formattedPet,
+          };
+        }
+
+        return pet;
+      }),
     );
 
-    setCurrentPet((currentPetValue) => {
-      if (
-        currentPetValue?.id === formattedPet.id
-      ) {
+    setCurrentPet((existingPet) => {
+      if (!existingPet) {
         return formattedPet;
       }
 
-      return currentPetValue;
+      const existingPetId =
+        existingPet._id || existingPet.id;
+
+      if (existingPetId === petId) {
+        return {
+          ...existingPet,
+          ...formattedPet,
+        };
+      }
+
+      return existingPet;
     });
   };
 
-  // Delete pet from global state
-  const removePet = (petId) => {
-    setPets((currentPets) => {
-      const remainingPets = currentPets.filter(
-        (pet) => pet.id !== petId,
-      );
+  // --------------------------------------------------
+  // Remove pet from context
+  // --------------------------------------------------
 
-      setCurrentPet((currentPetValue) => {
-        if (currentPetValue?.id !== petId) {
-          return currentPetValue;
-        }
-
-        if (remainingPets.length === 0) {
-          localStorage.removeItem(
-            "smartPawCurrentPetId",
-          );
-          return null;
-        }
-
-        const nextPet = remainingPets[0];
-
-        localStorage.setItem(
-          "smartPawCurrentPetId",
-          nextPet.id,
-        );
-
-        return nextPet;
-      });
-
-      return remainingPets;
-    });
-
-    const savedPetId =
-      localStorage.getItem("smartPawCurrentPetId");
-
-    if (savedPetId === petId) {
-      localStorage.removeItem("smartPawCurrentPetId");
+  const removePetFromContext = (petId) => {
+    if (!petId) {
+      return;
     }
+
+    setPets((currentPets) =>
+      currentPets.filter((pet) => {
+        const existingPetId =
+          pet._id || pet.id;
+
+        return existingPetId !== petId;
+      }),
+    );
+
+    setCurrentPet((existingPet) => {
+      if (!existingPet) {
+        return null;
+      }
+
+      const existingPetId =
+        existingPet._id || existingPet.id;
+
+      if (existingPetId === petId) {
+        return null;
+      }
+
+      return existingPet;
+    });
   };
 
+  // --------------------------------------------------
   // Login
-  const login = async (email, password) => {
+  // --------------------------------------------------
+
+  const login = async (
+    email,
+    password,
+  ) => {
     const response = await fetch(
-      "http://localhost:5000/api/auth/login",
+      `${API_BASE_URL}/auth/login`,
       {
         method: "POST",
         headers: {
@@ -219,44 +375,139 @@ export function AppProvider({ children }) {
       },
     );
 
-    const result = await response.json();
+    let result;
 
-    if (!response.ok) {
+    try {
+      result = await response.json();
+    } catch {
       throw new Error(
-        result.message || "Failed to login.",
+        "Invalid server response.",
       );
     }
 
-    const { token, user } = result.data;
+    if (!response.ok) {
+      throw new Error(
+        result?.message ||
+          "Failed to login.",
+      );
+    }
 
-    localStorage.setItem("smartPawToken", token);
+    if (
+      !result?.success ||
+      !result?.data?.token ||
+      !result?.data?.user
+    ) {
+      throw new Error(
+        "Invalid login response.",
+      );
+    }
+
+    const {
+      token,
+      user,
+    } = result.data;
+
+    localStorage.setItem(
+      "smartPawToken",
+      token,
+    );
 
     localStorage.setItem(
       "smartPawUser",
       JSON.stringify(user),
     );
 
-    localStorage.removeItem(
-      "smartPawCurrentPetId",
-    );
-
     setCurrentUser(user);
     setIsAuthenticated(true);
-  };
 
-  // Logout
-  const logout = () => {
-    localStorage.removeItem("smartPawToken");
-    localStorage.removeItem("smartPawUser");
-    localStorage.removeItem(
-      "smartPawCurrentPetId",
-    );
-
-    setCurrentUser(null);
-    setIsAuthenticated(false);
+    // Reset pet state.
     setPets([]);
     setCurrentPet(null);
+    setIsPetLoading(true);
+
+    return {
+      token,
+      user,
+    };
   };
+
+  // --------------------------------------------------
+  // Logout
+  // --------------------------------------------------
+
+  const logout = () => {
+    clearAuthentication();
+  };
+
+  // --------------------------------------------------
+  // Refresh authentication manually
+  // --------------------------------------------------
+
+  const refreshAuthentication = async () => {
+    const token =
+      localStorage.getItem("smartPawToken");
+
+    if (!token) {
+      clearAuthentication();
+      return false;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/auth/me`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          "Authentication expired.",
+        );
+      }
+
+      const result = await response.json();
+
+      if (
+        !result.success ||
+        !result.data?.user
+      ) {
+        throw new Error(
+          "Invalid authentication response.",
+        );
+      }
+
+      const user = result.data.user;
+
+      localStorage.setItem(
+        "smartPawUser",
+        JSON.stringify(user),
+      );
+
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+
+      return true;
+    } catch (error) {
+      clearAuthentication();
+      return false;
+    }
+  };
+
+  // --------------------------------------------------
+  // Prevent UI flicker while checking auth
+  // --------------------------------------------------
+
+  if (isAuthChecking) {
+    return null;
+  }
+
+  // --------------------------------------------------
+  // Context
+  // --------------------------------------------------
 
   return (
     <AppContext.Provider
@@ -264,17 +515,21 @@ export function AppProvider({ children }) {
         // User
         currentUser,
         isAuthenticated,
+        isAuthChecking,
+
+        // Authentication
         login,
         logout,
+        clearAuthentication,
+        refreshAuthentication,
 
         // Pets
         pets,
         currentPet,
-        setCurrentPet: selectPet,
-        selectPet,
+        setCurrentPet,
         addPet,
-        updatePet,
-        removePet,
+        updatePetInContext,
+        removePetFromContext,
         isPetLoading,
 
         // Theme
