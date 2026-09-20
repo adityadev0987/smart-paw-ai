@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
   Apple,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   Dumbbell,
   HeartPulse,
@@ -29,8 +30,13 @@ function Recommendation() {
   const [selectedCategory, setSelectedCategory] =
     useState("All");
 
+  const [isCategoryOpen, setIsCategoryOpen] =
+    useState(false);
+
   const [latestHealthCheck, setLatestHealthCheck] =
     useState(null);
+
+  const categoryDropdownRef = useRef(null);
 
   useEffect(() => {
     const loadLatestHealthCheck = () => {
@@ -93,7 +99,25 @@ function Recommendation() {
 
   useEffect(() => {
     setSelectedCategory("All");
+    setIsCategoryOpen(false);
   }, [currentPet?._id]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (
+        categoryDropdownRef.current &&
+        !categoryDropdownRef.current.contains(event.target)
+      ) {
+        setIsCategoryOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, []);
 
   const categories = [
     {
@@ -567,6 +591,7 @@ function Recommendation() {
 
     setCurrentPet(selectedPet);
     setSelectedCategory("All");
+    setIsCategoryOpen(false);
   };
 
   const getPriorityConfig = (priority) => {
@@ -705,30 +730,30 @@ function Recommendation() {
         </section>
 
         {/* PET SUMMARY */}
-        <section className="relative mb-6 overflow-hidden rounded-3xl border border-orange-100 bg-gradient-to-br from-orange-50 via-white to-white p-6 shadow-sm dark:border-orange-500/15 dark:from-orange-500/10 dark:via-[#111820] dark:to-[#111820]">
+        <section className="relative mb-6 overflow-hidden rounded-3xl border border-orange-100 bg-gradient-to-br from-orange-50 via-white to-white p-4 shadow-sm sm:p-6 dark:border-orange-500/15 dark:from-orange-500/10 dark:via-[#111820] dark:to-[#111820]">
           <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-orange-300/20 blur-2xl dark:bg-orange-500/10" />
 
           <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white text-orange-500 shadow-sm dark:bg-[#18212b] dark:text-orange-400">
-                <PawPrint size={29} />
+            <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-orange-500 shadow-sm sm:h-16 sm:w-16 dark:bg-[#18212b] dark:text-orange-400">
+                <PawPrint size={26} className="sm:h-7 sm:w-7" />
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-bold uppercase tracking-wider text-orange-500">
                   Current pet
                 </p>
 
-                <h2 className="mt-1 text-2xl font-bold">
+                <h2 className="mt-1 truncate text-xl font-bold sm:text-2xl">
                   {currentPet.name}
                 </h2>
 
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm dark:bg-[#18212b] dark:text-slate-300">
+                  <span className="max-w-full break-words rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm dark:bg-[#18212b] dark:text-slate-300">
                     {currentPet.species || "Pet"}
                   </span>
 
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm dark:bg-[#18212b] dark:text-slate-300">
+                  <span className="max-w-full break-words rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm dark:bg-[#18212b] dark:text-slate-300">
                     {currentPet.breed || "Unknown breed"}
                   </span>
 
@@ -741,9 +766,9 @@ function Recommendation() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-3 gap-2">
               <div className="rounded-xl border border-white/70 bg-white/80 px-4 py-3 text-center dark:border-slate-700 dark:bg-[#18212b]/80">
-                <p className="text-lg font-bold text-slate-900 dark:text-white">
+                <p className="text-base font-bold text-slate-900 sm:text-lg dark:text-white">
                   {recommendations.length}
                 </p>
                 <p className="text-[10px] font-semibold text-slate-400">
@@ -752,7 +777,7 @@ function Recommendation() {
               </div>
 
               <div className="rounded-xl border border-white/70 bg-white/80 px-4 py-3 text-center dark:border-slate-700 dark:bg-[#18212b]/80">
-                <p className="text-lg font-bold text-amber-500">
+                <p className="text-base font-bold text-amber-500 sm:text-lg">
                   {attentionCount}
                 </p>
                 <p className="text-[10px] font-semibold text-slate-400">
@@ -761,7 +786,7 @@ function Recommendation() {
               </div>
 
               <div className="rounded-xl border border-white/70 bg-white/80 px-4 py-3 text-center dark:border-slate-700 dark:bg-[#18212b]/80">
-                <p className="text-lg font-bold text-red-500">
+                <p className="text-base font-bold text-red-500 sm:text-lg">
                   {urgentCount}
                 </p>
                 <p className="text-[10px] font-semibold text-slate-400">
@@ -887,7 +912,89 @@ function Recommendation() {
             </span>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div
+            ref={categoryDropdownRef}
+            className="relative lg:hidden"
+          >
+            {(() => {
+              const activeCategory = categories.find(
+                (category) => category.name === selectedCategory,
+              ) || categories[0];
+              const ActiveCategoryIcon = activeCategory.icon;
+
+              return (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setIsCategoryOpen((current) => !current)
+                    }
+                    aria-expanded={isCategoryOpen}
+                    className="flex min-h-14 w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition hover:border-orange-300 focus:border-orange-500 focus:outline-none focus:ring-4 focus:ring-orange-500/10 dark:border-slate-700 dark:bg-[#111820]"
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500 dark:text-orange-400">
+                        <ActiveCategoryIcon size={17} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Focus area
+                        </span>
+                        <span className="mt-0.5 block truncate text-sm font-bold text-slate-900 dark:text-white">
+                          {selectedCategory}
+                        </span>
+                      </span>
+                    </span>
+
+                    <ChevronDown
+                      size={18}
+                      className={`shrink-0 text-slate-400 transition-transform ${
+                        isCategoryOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {isCategoryOpen && (
+                    <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl dark:border-slate-700 dark:bg-[#111820]">
+                      {categories.map((category) => {
+                        const Icon = category.icon;
+                        const active = selectedCategory === category.name;
+
+                        return (
+                          <button
+                            key={category.name}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCategory(category.name);
+                              setIsCategoryOpen(false);
+                            }}
+                            className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                              active
+                                ? "bg-orange-500/10 font-bold text-orange-600 dark:text-orange-400"
+                                : "font-medium text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-[#18212b]"
+                            }`}
+                          >
+                            <span className="flex min-w-0 items-center gap-3">
+                              <Icon
+                                size={16}
+                                className={active ? "shrink-0 text-orange-500" : "shrink-0 text-slate-400"}
+                              />
+                              <span className="break-words">{category.name}</span>
+                            </span>
+                            {active && (
+                              <CheckCircle2 size={16} className="shrink-0 text-orange-500" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+
+          <div className="hidden gap-2 overflow-x-auto pb-1 lg:flex">
             {categories.map((category) => {
               const Icon = category.icon;
               const active =
@@ -933,7 +1040,7 @@ function Recommendation() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
               {filteredRecommendations.map(
                 (recommendation) => {
                   const Icon =
@@ -969,20 +1076,20 @@ function Recommendation() {
                         </div>
                       </div>
 
-                      <div className="p-5">
-                        <div className="flex items-start justify-between gap-4">
+                      <div className="p-4 sm:p-5">
+                        <div className="flex items-start justify-between gap-3 sm:gap-4">
                           <div
                             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${priority.icon}`}
                           >
                             <Icon size={20} />
                           </div>
 
-                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                          <span className="max-w-[55%] break-words rounded-full bg-slate-100 px-2.5 py-1 text-right text-[10px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                             {recommendation.source}
                           </span>
                         </div>
 
-                        <h3 className="mt-5 text-base font-bold leading-6 text-slate-900 dark:text-white">
+                        <h3 className="mt-4 break-words text-base font-bold leading-6 text-slate-900 dark:text-white sm:mt-5">
                           {recommendation.title}
                         </h3>
 
@@ -990,7 +1097,7 @@ function Recommendation() {
                           {recommendation.description}
                         </p>
 
-                        <div className="mt-5 rounded-2xl border border-orange-100 bg-orange-50/70 p-4 dark:border-orange-500/15 dark:bg-orange-500/5">
+                        <div className="mt-4 rounded-2xl border border-orange-100 bg-orange-50/70 p-3.5 dark:border-orange-500/15 dark:bg-orange-500/5 sm:mt-5 sm:p-4">
                           <div className="flex gap-3">
                             <Target
                               size={17}

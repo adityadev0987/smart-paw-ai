@@ -4005,7 +4005,11 @@ function BreedInsights() {
   const [isBreedOpen, setIsBreedOpen] =
     useState(false);
 
+  const [isSectionOpen, setIsSectionOpen] =
+    useState(false);
+
   const dropdownRef = useRef(null);
+  const sectionDropdownRef = useRef(null);
 
   const availableBreeds = currentPet
     ? getSpeciesBreeds(currentPet.species)
@@ -4048,10 +4052,34 @@ function BreedInsights() {
     };
   }, []);
 
+  useEffect(() => {
+    const handleSectionOutsideClick = (event) => {
+      if (
+        sectionDropdownRef.current &&
+        !sectionDropdownRef.current.contains(event.target)
+      ) {
+        setIsSectionOpen(false);
+      }
+    };
+
+    document.addEventListener(
+      "mousedown",
+      handleSectionOutsideClick,
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleSectionOutsideClick,
+      );
+    };
+  }, []);
+
   const handleBreedSelect = (breed) => {
     setSelectedBreed(breed);
     setSelectedSection("overview");
     setIsBreedOpen(false);
+    setIsSectionOpen(false);
   };
 
   const isSelectedPetBreed =
@@ -4096,22 +4124,22 @@ function BreedInsights() {
         {/* Current Pet */}
         {currentPet && (
           <div className="mb-5 overflow-hidden rounded-2xl border border-orange-500/20 bg-gradient-to-br from-orange-500/10 to-white p-4 dark:to-[#111820] sm:p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-4">
+            <div className="flex items-center justify-between gap-3 sm:flex-row sm:gap-4">
+              <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white shadow-lg shadow-orange-500/20">
                   <PawPrint size={21} />
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-500">
                     Current Pet
                   </p>
 
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                  <h2 className="truncate text-base font-bold text-gray-900 dark:text-white sm:text-lg">
                     {currentPet.name}
                   </h2>
 
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="break-words text-xs leading-5 text-gray-600 dark:text-gray-400 sm:text-sm">
                     {currentPet.species ||
                       "Pet"}{" "}
                     •{" "}
@@ -4126,12 +4154,12 @@ function BreedInsights() {
               </div>
 
               {petInsight.matched ? (
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-green-500/20 bg-green-500/10 px-3 py-1.5 text-xs font-semibold text-green-600 dark:text-green-400">
+                <div className="inline-flex max-w-[112px] shrink-0 items-center justify-center gap-2 rounded-full border border-green-500/20 bg-green-500/10 px-2.5 py-1.5 text-center text-[11px] font-semibold text-green-600 sm:max-w-none sm:px-3 sm:text-xs dark:text-green-400">
                   <ShieldCheck size={14} />
                   Breed matched
                 </div>
               ) : (
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1.5 text-xs font-semibold text-orange-600 dark:text-orange-400">
+                <div className="inline-flex max-w-[112px] shrink-0 items-center justify-center gap-2 rounded-full border border-orange-500/20 bg-orange-500/10 px-2.5 py-1.5 text-center text-[11px] font-semibold text-orange-600 sm:max-w-none sm:px-3 sm:text-xs dark:text-orange-400">
                   <Info size={14} />
                   General guidance
                 </div>
@@ -4152,7 +4180,7 @@ function BreedInsights() {
                 (current) => !current,
               )
             }
-            className="flex w-full items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 py-4 text-left shadow-sm transition hover:border-orange-500/30 dark:border-gray-800 dark:bg-[#111820]"
+            className="flex w-full items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-left shadow-sm transition hover:border-orange-500/30 sm:py-4 dark:border-gray-800 dark:bg-[#111820]"
           >
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500">
@@ -4165,7 +4193,7 @@ function BreedInsights() {
                 </p>
 
                 <div className="mt-0.5 flex items-center gap-2">
-                  <span className="truncate text-sm font-bold text-gray-900 dark:text-white sm:text-base">
+                  <span className="break-words text-sm font-bold leading-5 text-gray-900 dark:text-white sm:truncate sm:text-base">
                     {selectedBreed.name}
                   </span>
 
@@ -4293,33 +4321,93 @@ function BreedInsights() {
         </div>
 
         {/* Mobile section selector */}
-        <div className="mb-5 lg:hidden">
-          <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-500">
-            Read Section
-          </label>
+        <div
+          ref={sectionDropdownRef}
+          className="relative mb-5 lg:hidden"
+        >
+          <p className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-500">
+            Breed Guide
+          </p>
 
-          <select
-            value={selectedSection}
-            onChange={(event) =>
-              setSelectedSection(
-                event.target.value,
-              )
+          <button
+            type="button"
+            onClick={() =>
+              setIsSectionOpen((current) => !current)
             }
-            className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 outline-none focus:border-orange-500 dark:border-gray-700 dark:bg-[#111820] dark:text-gray-200"
+            aria-expanded={isSectionOpen}
+            className="flex min-h-14 w-full items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 py-3 text-left shadow-sm transition hover:border-orange-500/40 focus:border-orange-500 focus:outline-none focus:ring-4 focus:ring-orange-500/10 dark:border-gray-800 dark:bg-[#111820]"
           >
-            {sections.map((section) => (
-              <option
-                key={section.id}
-                value={section.id}
-              >
-                {section.label}
-              </option>
-            ))}
-          </select>
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500">
+                <ActiveIcon size={17} />
+              </span>
+
+              <span className="min-w-0">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Read Section
+                </span>
+                <span className="mt-0.5 block truncate text-sm font-bold text-gray-900 dark:text-white">
+                  {activeSection?.label || "Overview"}
+                </span>
+              </span>
+            </span>
+
+            <ChevronDown
+              size={18}
+              className={`shrink-0 text-gray-500 transition-transform ${
+                isSectionOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+
+          {isSectionOpen && (
+            <div className="absolute left-0 right-0 top-full z-40 mt-2 max-h-[min(24rem,60vh)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-2xl dark:border-gray-700 dark:bg-[#111820]">
+              {sections.map((section) => {
+                const Icon = section.icon;
+                const active = selectedSection === section.id;
+
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedSection(section.id);
+                      setIsSectionOpen(false);
+                    }}
+                    className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                      active
+                        ? "bg-orange-500/10 font-bold text-orange-600 dark:text-orange-400"
+                        : "font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <Icon
+                        size={16}
+                        className={
+                          active
+                            ? "shrink-0 text-orange-500"
+                            : "shrink-0 text-gray-500"
+                        }
+                      />
+                      <span className="break-words">
+                        {section.label}
+                      </span>
+                    </span>
+
+                    {active && (
+                      <span className="shrink-0 text-xs font-black text-orange-500">
+                        Selected
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Documentation layout */}
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-5">
           {/* Sidebar */}
           <aside className="hidden lg:block">
             <div className="sticky top-24 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111820]">
@@ -4379,7 +4467,7 @@ function BreedInsights() {
           {/* Right content */}
           <main className="min-w-0">
             <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-[#111820]">
-              <div className="border-b border-gray-200 bg-gradient-to-r from-orange-500/5 to-transparent px-5 py-6 dark:border-gray-800 sm:px-7 sm:py-7">
+              <div className="border-b border-gray-200 bg-gradient-to-r from-orange-500/5 to-transparent px-4 py-5 dark:border-gray-800 sm:px-7 sm:py-7">
                 <SectionTitle
                   icon={ActiveIcon}
                   eyebrow={
@@ -4399,7 +4487,7 @@ function BreedInsights() {
                 />
               </div>
 
-              <div className="p-5 sm:p-7">
+              <div className="p-4 sm:p-7">
                 <SectionContent
                   section={selectedSection}
                   breed={selectedBreed}
@@ -4407,7 +4495,7 @@ function BreedInsights() {
               </div>
 
               {/* Bottom navigation */}
-              <div className="border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-gray-800 dark:bg-[#0D141B] sm:px-7">
+              <div className="border-t border-gray-200 bg-gray-50 px-4 py-4 dark:border-gray-800 dark:bg-[#0D141B] sm:px-7">
                 <div className="flex items-center justify-between gap-3">
                   {(() => {
                     const currentIndex =
