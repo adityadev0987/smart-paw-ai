@@ -1,5 +1,12 @@
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom"
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom"
 import Navbar from "./components/layout/Navbar"
+import { useAppContext } from "./hooks/useAppContext"
 
 import Home from "./pages/Home"
 import AIHealthCheck from "./pages/AIHealthCheck"
@@ -14,8 +21,19 @@ import Login from "./pages/Login"
 import Register from "./pages/Register"
 import Notfound from "./pages/Notfound"
 
+function ProtectedRoute({ children }) {
+  const { isAuthenticated } = useAppContext()
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  return children
+}
+
 function AppContent() {
   const location = useLocation()
+  const { isAuthenticated } = useAppContext()
 
   const hideNavbar =
     location.pathname === "/login" ||
@@ -23,21 +41,106 @@ function AppContent() {
 
   return (
     <>
-      {!hideNavbar && <Navbar />}
+      {(!isAuthenticated || !hideNavbar) && <Navbar />}
 
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/health-check" element={<AIHealthCheck />} />
-        <Route path="/planner" element={<Planner />} />
-        <Route path="/breed-insights" element={<BreedInsights />} />
-        <Route path="/vet-locator" element={<VetLocator />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/pet-profile" element={<PetProfile />} />
-        <Route path="/health-records" element={<Community />} />
-        <Route path="/recommendation" element={<Recommendation />} />
+        <Route
+          path="/health-check"
+          element={
+            <ProtectedRoute>
+              <AIHealthCheck />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/planner"
+          element={
+            <ProtectedRoute>
+              <Planner />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/breed-insights"
+          element={
+            <ProtectedRoute>
+              <BreedInsights />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vet-locator"
+          element={
+            <ProtectedRoute>
+              <VetLocator />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pet-profile"
+          element={
+            <ProtectedRoute>
+              <PetProfile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/health-records"
+          element={
+            <ProtectedRoute>
+              <Community />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/medical-records"
+          element={
+            <ProtectedRoute>
+              <Community />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/community"
+          element={
+            <ProtectedRoute>
+              <Community />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/recommendation"
+          element={
+            <ProtectedRoute>
+              <Recommendation />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/recommendations"
+          element={
+            <ProtectedRoute>
+              <Recommendation />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="*" element={<Notfound />} />
+        <Route
+          path="*"
+          element={
+            isAuthenticated ? <Notfound /> : <Navigate to="/" replace />
+          }
+        />
       </Routes>
     </>
   )

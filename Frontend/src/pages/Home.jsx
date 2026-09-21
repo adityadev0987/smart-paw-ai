@@ -9,6 +9,7 @@ import {
   Sparkles,
   ArrowRight,
 } from "lucide-react";
+import { useAppContext } from "../hooks/useAppContext";
 
 const features = [
   {
@@ -78,6 +79,8 @@ const features = [
 ];
 
 function Home() {
+  const { isAuthenticated } = useAppContext();
+
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-orange-50/60 via-white to-white transition-colors duration-300 dark:from-[#111820] dark:via-[#0B0F14] dark:to-[#0B0F14]">
       {/* Hero */}
@@ -90,6 +93,12 @@ function Home() {
             <PawPrint className="h-4 w-4" />
             Smart Pet Care
           </div>
+
+          {!isAuthenticated && (
+            <p className="mt-5 text-sm font-semibold text-orange-500 dark:text-orange-400">
+              Welcome to Smart Paw AI
+            </p>
+          )}
 
           <h1 className="mx-auto mt-6 max-w-3xl text-4xl font-extrabold leading-tight tracking-tight text-gray-900 sm:text-5xl lg:text-6xl dark:text-white">
             Know More.
@@ -105,15 +114,15 @@ function Home() {
 
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <Link
-              to="/dashboard"
+              to={isAuthenticated ? "/dashboard" : "/login"}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-6 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600 hover:shadow-md active:scale-[0.99]"
             >
-              Open Dashboard
+              {isAuthenticated ? "Open Dashboard" : "Start"}
               <ArrowRight className="h-4 w-4" />
             </Link>
 
             <Link
-              to="/health-check"
+              to={isAuthenticated ? "/health-check" : "/login"}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-6 py-3.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-[0.99] dark:border-gray-700 dark:bg-[#111820] dark:text-gray-300 dark:hover:border-orange-500/40 dark:hover:bg-[#18212B] dark:hover:text-orange-400"
             >
               <Sparkles className="h-4 w-4" />
@@ -148,7 +157,7 @@ function Home() {
               return (
                 <Link
                   key={feature.path}
-                  to={feature.path}
+                  to={isAuthenticated ? feature.path : "/login"}
                   className="group rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-orange-200 hover:shadow-lg dark:border-gray-800 dark:bg-[#111820] dark:hover:border-orange-500/30 dark:hover:bg-[#151E27] dark:hover:shadow-orange-500/5"
                 >
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-500 transition group-hover:bg-orange-500 group-hover:text-white dark:bg-orange-500/10 dark:text-orange-400 dark:group-hover:bg-orange-500 dark:group-hover:text-white">
@@ -196,7 +205,7 @@ function Home() {
 
           <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
             <Link
-              to="/dashboard"
+              to={isAuthenticated ? "/dashboard" : "/login"}
               className="rounded-xl bg-orange-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
             >
               Explore Dashboard
