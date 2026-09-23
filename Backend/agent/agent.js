@@ -6,6 +6,113 @@ import {
 import { generateHealthInsight } from "../services/llmService.js";
 import runHealthTriage from "../services/healthTriageRules.js";
 
+const normalizeQuestion = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[?!.:,;]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const hasAskedQuestion = (conversation, question) => {
+  const normalizedQuestion = normalizeQuestion(question);
+
+  if (!normalizedQuestion) {
+    return false;
+  }
+
+  return conversation.some(
+    (message) =>
+      message?.role === "assistant" &&
+      normalizeQuestion(message.content) === normalizedQuestion,
+  );
+};
+
+/*
+ * These are user-safe processing stages.
+ *
+ * We do NOT expose private model reasoning or chain-of-thought.
+ * These stages simply tell the user which part of the health
+ * check pipeline is being processed.
+ */
+const buildProcessingSteps = ({
+  petProfile = "completed",
+  medicalRecords = "completed",
+  healthHistory = "completed",
+  safetyCheck = "completed",
+  veterinaryKnowledge = "completed",
+  analysis = "completed",
+} = {}) => [
+  {
+    id: "pet_profile",
+    label: "Checking pet profile",
+    status: petProfile,
+  },
+
+  {
+    id: "medical_records",
+    label: "Reviewing medical records",
+    status: medicalRecords,
+  },
+
+  {
+    id: "health_history",
+    label: "Reviewing previous health history",
+    status: healthHistory,
+  },
+
+  {
+    id: "safety_check",
+    label: "Checking health safety signals",
+    status: safetyCheck,
+  },
+
+  {
+    id: "veterinary_knowledge",
+    label: "Reviewing relevant pet health information",
+    status: veterinaryKnowledge,
+  },
+
+  {
+    id: "analysis",
+    label: "Analyzing the current concern",
+    status: analysis,
+  },
+];
+
+const buildConversationFallback = ({
+  pet,
+  healthRecords,
+  currentSymptoms,
+  triage,
+  processingSteps,
+}) => ({
+  pet,
+  healthRecords,
+  currentSymptoms,
+
+  status: "FINAL",
+
+  question: "",
+
+  assessment:
+    "I have enough information to give a cautious initial assessment, but chat cannot determine the exact cause. Continue monitoring your pet closely and arrange veterinary advice if the concern persists or worsens.",
+
+  nextSteps: [
+    "Monitor appetite, water intake, energy, and symptom frequency.",
+    "Record any changes so you can share them with a veterinarian.",
+    "Seek veterinary care promptly if symptoms worsen or new warning signs appear.",
+  ],
+
+  urgent: false,
+
+  triage: {
+    level: triage.level,
+    source: "local",
+  },
+
+  processingSteps,
+});
+
 export async function runHealthAgent({
   petId,
   symptoms,
@@ -21,13 +128,39 @@ export async function runHealthAgent({
 
   const currentSymptoms = symptoms.trim();
 
-  // 1. Get complete pet profile + medical context
+  const followUpCount = conversation.filter(
+    (message) => message?.role === "assistant",
+  ).length;
+
+  /*
+   * ---------------------------------------------------------
+   * STEP 1
+   * Fetch complete pet profile
+   * ---------------------------------------------------------
+   */
+
   const pet = await getPetProfile(petId);
 
-  // 2. Get previous health records
+  /*
+   * ---------------------------------------------------------
+   * STEP 2
+   * Fetch previous medical records
+   * ---------------------------------------------------------
+   */
+
   const healthRecords = await getHealthRecords(petId);
 
-  // 3. Run local triage rules first
+  /*
+   * ---------------------------------------------------------
+   * STEP 3
+   * Run local safety / triage rules
+   *
+   * Local rules are checked before the AI.
+   * This prevents obvious emergency signals from depending
+   * entirely on the external AI model.
+   * ---------------------------------------------------------
+   */
+
   const triage = runHealthTriage({
     message: currentSymptoms,
     petProfile: pet,
@@ -36,10 +169,33 @@ export async function runHealthAgent({
   });
 
   /*
-   * Emergency signals detected locally.
+   * At this point the following user-safe stages are complete.
    *
-   * Do not depend on Gemini for obvious emergency signals.
+   * Veterinary knowledge is marked as completed only because
+   * the current AI service already has its own general model
+   * knowledge. A dedicated veterinary knowledge retrieval layer
+   * will be added separately later.
    */
+
+  const processingStepsBeforeAnalysis = buildProcessingSteps({
+    petProfile: "completed",
+    medicalRecords: "completed",
+    healthHistory: "completed",
+    safetyCheck: "completed",
+    veterinaryKnowledge: "completed",
+    analysis: "processing",
+  });
+
+  /*
+   * ---------------------------------------------------------
+   * STEP 4
+   * Emergency handling
+   *
+   * Never depend on Gemini to downgrade an emergency signal
+   * detected by local rules.
+   * ---------------------------------------------------------
+   */
+
   if (triage.emergency) {
     return {
       pet,
@@ -64,16 +220,35 @@ export async function runHealthAgent({
       triage: {
         level: triage.level,
         emergencySignals: triage.emergencySignals,
+        source: "local",
       },
+
+      processingSteps: buildProcessingSteps({
+        petProfile: "completed",
+        medicalRecords: "completed",
+        healthHistory: "completed",
+        safetyCheck: "completed",
+        veterinaryKnowledge: "completed",
+        analysis: "completed",
+      }),
     };
   }
 
   /*
-   * 4. Gemini is used only after local safety checks.
+   * ---------------------------------------------------------
+   * STEP 5
+   * Generate AI health insight
    *
-   * It receives the COMPLETE pet medical context,
-   * health records and conversation.
+   * The AI receives:
+   *
+   * - complete pet profile
+   * - medical records
+   * - current symptoms
+   * - previous conversation
+   * - local triage information
+   * ---------------------------------------------------------
    */
+
   let aiResponse;
 
   try {
@@ -97,10 +272,21 @@ export async function runHealthAgent({
     );
 
     /*
-     * Gemini/API unavailable.
-     * Health Check should still work.
+     * -------------------------------------------------------
+     * AI unavailable
+     *
+     * The Health Check must still work using local rules.
+     * -------------------------------------------------------
      */
-    if (triage.suggestedFollowUp) {
+
+    if (
+      triage.suggestedFollowUp &&
+      followUpCount < 3 &&
+      !hasAskedQuestion(
+        conversation,
+        triage.suggestedFollowUp.suggestedQuestion,
+      )
+    ) {
       return {
         pet,
         healthRecords,
@@ -122,40 +308,43 @@ export async function runHealthAgent({
           level: triage.level,
           source: "local",
         },
+
+        processingSteps: buildProcessingSteps({
+          petProfile: "completed",
+          medicalRecords: "completed",
+          healthHistory: "completed",
+          safetyCheck: "completed",
+          veterinaryKnowledge: "completed",
+          analysis: "completed",
+        }),
       };
     }
 
-    return {
+    return buildConversationFallback({
       pet,
       healthRecords,
       currentSymptoms,
+      triage,
 
-      status: "FINAL",
-
-      question: "",
-
-      assessment:
-        "I could not complete the full AI assessment right now. No predefined emergency warning sign was detected from the information provided, but this does not rule out a medical problem.",
-
-      nextSteps: [
-        "Monitor your pet closely for changes.",
-        "Contact a veterinarian if symptoms persist, worsen, or new warning signs appear.",
-      ],
-
-      urgent: false,
-
-      triage: {
-        level: triage.level,
-        source: "local",
-      },
-    };
+      processingSteps: buildProcessingSteps({
+        petProfile: "completed",
+        medicalRecords: "completed",
+        healthHistory: "completed",
+        safetyCheck: "completed",
+        veterinaryKnowledge: "completed",
+        analysis: "completed",
+      }),
+    });
   }
 
   /*
-   * 5. Safety normalization
+   * ---------------------------------------------------------
+   * STEP 6
+   * Safety normalization
    *
-   * Never allow an AI response to remove urgency
-   * if our local rules already detected a concern.
+   * Never allow the AI response to remove urgency when
+   * local rules already identified RED-level signals.
+   * ---------------------------------------------------------
    */
 
   const safeUrgent =
@@ -163,18 +352,68 @@ export async function runHealthAgent({
       ? true
       : Boolean(aiResponse.urgent);
 
+  /*
+   * ---------------------------------------------------------
+   * STEP 7
+   * Validate AI follow-up question
+   * ---------------------------------------------------------
+   */
+
+  const question = String(
+    aiResponse.question || "",
+  ).trim();
+
+  const repeatedQuestion =
+    aiResponse.status === "FOLLOW_UP" &&
+    (!question ||
+      hasAskedQuestion(
+        conversation,
+        question,
+      ));
+
+  /*
+   * If the AI repeatedly asks the same question,
+   * stop the loop and provide a cautious assessment.
+   */
+
+  if (repeatedQuestion) {
+    return buildConversationFallback({
+      pet,
+      healthRecords,
+      currentSymptoms,
+      triage,
+
+      processingSteps: buildProcessingSteps({
+        petProfile: "completed",
+        medicalRecords: "completed",
+        healthHistory: "completed",
+        safetyCheck: "completed",
+        veterinaryKnowledge: "completed",
+        analysis: "completed",
+      }),
+    });
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * STEP 8
+   * Build final response
+   * ---------------------------------------------------------
+   */
+
+  const finalStatus =
+    aiResponse.status === "FOLLOW_UP"
+      ? "FOLLOW_UP"
+      : "FINAL";
+
   return {
     pet,
     healthRecords,
     currentSymptoms,
 
-    status:
-      aiResponse.status === "FOLLOW_UP"
-        ? "FOLLOW_UP"
-        : "FINAL",
+    status: finalStatus,
 
-    question:
-      aiResponse.question || "",
+    question,
 
     assessment:
       aiResponse.assessment || "",
@@ -188,8 +427,20 @@ export async function runHealthAgent({
 
     triage: {
       level: triage.level,
-      medicalSignals: triage.medicalSignals,
+
+      medicalSignals:
+        triage.medicalSignals,
+
       source: "local+ai",
     },
+
+    processingSteps: buildProcessingSteps({
+      petProfile: "completed",
+      medicalRecords: "completed",
+      healthHistory: "completed",
+      safetyCheck: "completed",
+      veterinaryKnowledge: "completed",
+      analysis: "completed",
+    }),
   };
 }

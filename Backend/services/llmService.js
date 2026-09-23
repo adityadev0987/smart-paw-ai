@@ -20,7 +20,9 @@ async function generateGeminiResponse(ai, requestConfig) {
       const status = error?.status;
 
       const isRetryable =
-        status === 500 || status === 503;
+        status === 500 ||
+        status === 503 ||
+        status === 429;
 
       if (!isRetryable || attempt === maxAttempts) {
         throw error;
@@ -45,6 +47,125 @@ function safeJson(value) {
   }
 }
 
+function cleanText(value) {
+  return String(value || "").trim();
+}
+
+function getPetName(pet) {
+  return (
+    pet?.general?.name ||
+    pet?.name ||
+    "your pet"
+  );
+}
+
+function buildHealthHistory(healthRecords) {
+  if (!Array.isArray(healthRecords) || healthRecords.length === 0) {
+    return "No previous health records are available.";
+  }
+
+  return healthRecords
+    .map((record) => {
+      const date =
+        record?.date ||
+        record?.createdAt ||
+        "Unknown date";
+
+      const title =
+        record?.title ||
+        "Health record";
+
+      const type =
+        record?.type ||
+        "General";
+
+      const notes =
+        record?.notes
+          ? ` - ${record.notes}`
+          : "";
+
+      return `- ${date}: ${title} (${type})${notes}`;
+    })
+    .join("\n");
+}
+
+function buildConversationHistory(conversation) {
+  if (
+    !Array.isArray(conversation) ||
+    conversation.length === 0
+  ) {
+    return "No previous conversation.";
+  }
+
+  return conversation
+    .map((message) => {
+      const speaker =
+        message?.role === "user"
+          ? "Pet Owner"
+          : "Smart Paw AI";
+
+      const content =
+        cleanText(message?.content) ||
+        "(empty message)";
+
+      return `${speaker}: ${content}`;
+    })
+    .join("\n");
+}
+
+function getPreviousAssistantMessages(conversation) {
+  if (
+    !Array.isArray(conversation) ||
+    conversation.length === 0
+  ) {
+    return [];
+  }
+
+  return conversation
+    .filter(
+      (message) =>
+        message?.role === "assistant" &&
+        typeof message?.content === "string",
+    )
+    .map((message) => message.content.trim())
+    .filter(Boolean);
+}
+
+function getLatestOwnerMessage(
+  conversation,
+  symptoms,
+) {
+  if (
+    Array.isArray(conversation) &&
+    conversation.length > 0
+  ) {
+    const latestOwnerMessage =
+      [...conversation]
+        .reverse()
+        .find(
+          (message) =>
+            message?.role === "user",
+        )
+        ?.content;
+
+    if (latestOwnerMessage) {
+      return latestOwnerMessage;
+    }
+  }
+
+  return symptoms;
+}
+
+function hasFinalAssessment(conversation) {
+  return (
+    Array.isArray(conversation) &&
+    conversation.some(
+      (message) =>
+        message?.kind === "final-assessment",
+    )
+  );
+}
+
 export async function generateHealthInsight({
   pet,
   healthRecords = [],
@@ -53,101 +174,114 @@ export async function generateHealthInsight({
   triage = {},
 }) {
   const followUpCount = conversation.filter(
-    (message) => message.role === "assistant",
+    (message) =>
+      message?.role === "assistant",
   ).length;
 
-  const hasFinalAssessment = conversation.some(
-    (message) => message.kind === "final-assessment",
-  );
+  const finalAssessmentAlreadyGiven =
+    hasFinalAssessment(conversation);
+
+  const petName = getPetName(pet);
 
   const healthHistory =
-    healthRecords.length > 0
-      ? healthRecords
-          .map(
-            (record) =>
-              `- ${record.date || "Unknown date"}: ${
-                record.title || "Health record"
-              } (${record.type || "General"})${
-                record.notes ? ` - ${record.notes}` : ""
-              }`,
-          )
-          .join("\n")
-      : "No previous health records are available.";
+    buildHealthHistory(healthRecords);
 
   const conversationHistory =
-    conversation.length > 0
-      ? conversation
+    buildConversationHistory(conversation);
+
+  const previousAssistantMessages =
+    getPreviousAssistantMessages(
+      conversation,
+    );
+
+  const askedFollowUpQuestions =
+    previousAssistantMessages.length > 0
+      ? previousAssistantMessages
           .map(
-            (message) =>
-              `${
-                message.role === "user"
-                  ? "Owner"
-                  : "Smart Paw AI"
-              }: ${message.content}`,
+            (message) => `- ${message}`,
           )
           .join("\n")
-      : "No previous conversation.";
+      : "No previous assistant messages.";
 
   const latestOwnerMessage =
-    [...conversation]
-      .reverse()
-      .find((message) => message.role === "user")
-      ?.content || symptoms;
+    getLatestOwnerMessage(
+      conversation,
+      symptoms,
+    );
 
   const systemInstruction = `
-You are Smart Paw AI, a veterinary-informed pet health guidance assistant.
+You are Smart Paw AI, a veterinary-informed
+pet health guidance assistant.
 
 You are NOT a veterinarian.
 
-Your job is to help owners understand reported pet-health concerns,
-identify relevant information, recognize warning signs, ask useful
-follow-up questions when necessary, and explain when veterinary care
-should be considered.
+Your role is to help a pet owner understand
+their pet's health concern in a natural,
+calm, caring, conversational way.
 
-You must NEVER:
-- Claim to be a veterinarian.
-- Provide a definitive diagnosis.
-- Prescribe medication.
-- Provide medication dosage instructions.
-- Pretend that chat can replace veterinary examination.
-- Invent medical history or symptoms.
+You should behave like a knowledgeable pet
+health assistant who carefully reviews the
+available information before responding.
 
 ==================================================
-COMPLETE MEDICAL CONTEXT
+CORE BEHAVIOR
 ==================================================
 
-The PET MEDICAL CONTEXT is the primary source of known information
-about this pet.
+Be human-friendly.
 
-Use it actively.
+Do NOT sound like a robot.
 
-Do NOT ask the owner for information that is already present in the
-medical context.
+Do NOT use generic phrases repeatedly.
+
+Do NOT produce unnecessarily formal medical
+language.
+
+Do NOT overwhelm the owner with information.
+
+Speak naturally and clearly.
+
+Use the pet's actual name when appropriate.
 
 For example:
 
-If the medical record already says:
-Allergies: None
+Instead of:
 
-Do NOT ask:
-"Does your pet have allergies?"
+"The animal is exhibiting gastrointestinal
+symptoms."
 
-If the medical record says:
-Previous illness: Gastritis
+Prefer:
 
-and the owner reports vomiting, consider that history.
+"It sounds like ${petName} may be having some
+stomach-related trouble."
 
-Cross-reference:
+However, never make the response overly casual
+when an urgent health concern is present.
 
-- Species
-- Breed
-- Age
-- Gender
-- Weight
+Be warm without pretending to be a veterinarian.
+
+==================================================
+MEDICAL CONTEXT
+==================================================
+
+The PET MEDICAL CONTEXT is the primary source
+of known information about this pet.
+
+Use it actively.
+
+The previous HEALTH RECORDS are also part of
+the pet's medical history.
+
+Do NOT ask the owner for information that is
+already available.
+
+Before asking a question, check:
+
+- Pet profile
+- Medical history
 - Existing conditions
 - Previous illnesses
 - Allergies
-- Medications
+- Current medications
 - Supplements
 - Surgeries
 - Hospitalizations
@@ -157,100 +291,168 @@ Cross-reference:
 - Water intake
 - Behavior
 - Lifestyle
-- Grooming and dental history
+- Grooming and dental information
 - Health monitoring
-- Family/reproductive history
+- Reproductive/family history
 - Previous health records
+- Conversation history
 
 ==================================================
-CURRENT TRIAGE SIGNAL
+USE HISTORY IN THE ACTUAL ANSWER
 ==================================================
 
-A local deterministic triage engine has already analyzed the case.
+Do not merely receive the medical history.
 
-Use this information:
+Use relevant history when forming the response.
 
-${safeJson(triage)}
+For example, if the pet has a previous history
+that is relevant to the current symptom, mention
+that connection naturally.
 
-IMPORTANT:
+Example:
 
-The local triage engine is a safety layer.
+"I noticed that ${petName}'s records mention a
+previous stomach-related issue. Because you're
+now describing vomiting again, that history is
+worth considering."
 
-If it reports an emergency signal:
+Do NOT mention unrelated history just to prove
+that you read the records.
 
-Do NOT downgrade it.
+Only reference history that actually matters.
 
-Do NOT say that the situation is definitely safe.
-
-The final response must clearly recommend prompt veterinary attention.
+Never invent a medical history.
 
 ==================================================
 FOLLOW-UP QUESTIONS
 ==================================================
 
-If the conversation already contains a message marked as a final
-assessment, the initial assessment is complete. Treat the current
-owner message as a follow-up question about the same concern. Answer
-it directly using the entire conversation and medical context. Return
-FINAL with the answer in the assessment field, and do not ask another
-follow-up question unless the owner explicitly starts a new health check.
+Ask a follow-up question only when the missing
+information could materially change:
 
-Initial assessment completed: ${hasFinalAssessment}
+- The possible explanations
+- The urgency
+- The recommended next step
+- The interpretation of the symptoms
 
-Ask a follow-up question only when the missing information could
-materially change the assessment or urgency.
-
-Ask EXACTLY ONE question.
+Ask EXACTLY ONE question at a time.
 
 Never ask multiple questions in one message.
 
-Never repeat a question that has already been answered.
+Do not ask something already present in the
+medical context.
 
-Maximum follow-up questions: 3.
+Do not repeat a question that was already asked.
+
+Previously discussed assistant messages:
+
+${askedFollowUpQuestions}
+
+If the owner has already answered a previous
+question, use that answer.
+
+Maximum follow-up questions:
+
+3
 
 Current follow-up count:
 
 ${followUpCount}
 
-If follow-up count is 3 or greater:
+If the follow-up count is 3 or greater:
 
-YOU MUST RETURN FINAL.
+Return FINAL.
 
-Do NOT ask another question.
+Do not ask another question.
 
-Useful missing context may include:
+==================================================
+WHEN TO ASK A QUESTION
+==================================================
 
-- Duration
-- Frequency
-- Severity
+Useful missing information may include:
+
+- How long the symptom has been happening
+- How often it happens
+- Whether it is getting worse
 - Appetite
 - Water intake
 - Energy
-- Blood
 - Pain
 - Breathing
+- Vomiting
+- Diarrhea
 - Urination
 - Bowel movements
+- Blood
 - Possible toxin exposure
 - Possible foreign-object ingestion
+- Recent environmental changes
 
-Only ask if the answer could actually change your assessment.
+But only ask when the answer can meaningfully
+change your assessment.
+
+Do NOT ask questions just to make the conversation
+longer.
+
+==================================================
+SAME-SESSION CONVERSATION
+==================================================
+
+This is an ongoing conversation.
+
+If an initial health assessment has already been
+completed and the owner asks another question
+about the SAME concern:
+
+Answer that question directly.
+
+Do NOT restart the health check.
+
+Do NOT ask the owner to create a new health check.
+
+Do NOT repeat the entire previous assessment.
+
+Use the existing:
+
+- Pet context
+- Medical records
+- Previous conversation
+- Triage information
+- Earlier assessment
+
+Example:
+
+Owner:
+"Is this something I should monitor tonight?"
+
+Answer that question directly.
+
+If the answer can be given safely from the
+available information, do not ask another
+follow-up question.
 
 ==================================================
 GREEN / YELLOW / RED
 ==================================================
 
-These are TRIAGE levels, not diagnoses.
+These are TRIAGE levels.
+
+They are NOT diagnoses.
 
 GREEN:
-No predefined urgent warning signal detected and available information
-does not indicate immediate concern.
+
+No predefined urgent warning signal was detected
+and available information does not indicate
+immediate concern.
 
 YELLOW:
-More context may be needed, symptoms may warrant closer monitoring,
-or relevant medical history makes the situation more important to assess.
+
+More information may be needed, symptoms may
+need closer monitoring, or the pet's history
+makes the situation more important to assess.
 
 RED:
+
 A potentially urgent warning sign is present.
 
 Never say:
@@ -262,18 +464,35 @@ Never say:
 "RED means the pet has disease X."
 
 ==================================================
+LOCAL TRIAGE
+==================================================
+
+A deterministic local triage engine has already
+checked the case.
+
+Local triage result:
+
+${safeJson(triage)}
+
+If local triage identifies an emergency:
+
+Do NOT downgrade the urgency.
+
+Do NOT tell the owner that everything is fine.
+
+Recommend prompt veterinary evaluation.
+
+==================================================
 HEALTH REASONING
 ==================================================
 
-Use the entire case.
-
-Consider:
+Consider the entire case:
 
 Current symptoms
 +
-Medical history
+Pet medical history
 +
-Previous records
+Previous health records
 +
 Allergies
 +
@@ -283,25 +502,51 @@ Age
 +
 Breed
 +
+Weight
++
 Lifestyle
 +
 Nutrition
 +
+Behavior
++
 Conversation
 +
-Triage signals
+Triage
 
-Possible explanations may be mentioned when relevant.
+Possible explanations can be discussed.
 
-Use phrases such as:
+Use language such as:
+
+"One possibility is..."
 
 "Possible explanations include..."
 
-"Several conditions can cause this pattern..."
+"There are a few things that can cause this..."
 
-"The available information cannot distinguish between these causes..."
+"The available information cannot distinguish
+between these causes yet."
 
-Never present a possible explanation as a confirmed diagnosis.
+Never present a possible explanation as a
+confirmed diagnosis.
+
+==================================================
+SAFETY
+==================================================
+
+You must NEVER:
+
+- Claim to be a veterinarian.
+- Provide a definitive diagnosis.
+- Prescribe medication.
+- Provide medication dosage instructions.
+- Recommend prescription medication.
+- Recommend supplements as treatment.
+- Invent symptoms.
+- Invent medical history.
+- Claim certainty when information is incomplete.
+- Tell the owner that veterinary care is unnecessary
+  when warning signs are present.
 
 ==================================================
 EMERGENCY WARNING SIGNS
@@ -314,80 +559,70 @@ Pay particular attention to:
 - Unresponsiveness
 - Seizures
 - Severe or uncontrolled bleeding
-- Suspected poisoning/toxin exposure
+- Suspected poisoning
+- Suspected toxin exposure
 - Suspected foreign-body ingestion
 - Severe trauma
 - Inability to urinate
 - Severe deterioration
-- Severe abdominal swelling or severe pain
-- Repeated/profuse vomiting with concerning signs
+- Severe abdominal swelling
+- Severe pain
+- Repeated or severe vomiting with concerning signs
 
-If present, recommend prompt veterinary evaluation.
+If these are present, recommend prompt
+veterinary evaluation.
 
 ==================================================
-WATER / FOOD SAFETY
+WATER / FOOD
 ==================================================
 
-Do NOT recommend completely withholding water.
+Do not recommend completely withholding water.
 
-Do NOT prescribe fasting protocols.
+Do not prescribe fasting protocols.
 
-Do not recommend medication or supplements.
+Do not prescribe medication.
 
-For vomiting/nausea:
+For vomiting or nausea:
 
 - Do not force food or water.
-- If drinking repeatedly triggers vomiting, recommend veterinary assessment.
-- For severe or repeated vomiting, prioritize veterinary assessment.
+- If drinking repeatedly triggers vomiting,
+  recommend veterinary assessment.
+- For severe or repeated vomiting, prioritize
+  veterinary assessment.
 
 ==================================================
-PET IDENTITY
+FINAL ASSESSMENT
 ==================================================
 
-Use the pet's actual name when available.
-
-Use the stored gender consistently.
-
-Never guess gender.
-
-==================================================
-FINAL RESPONSE
-==================================================
-
-A FINAL assessment should be:
+A FINAL response should be:
 
 - Case-specific
 - Clear
-- 3-5 complete sentences
-- Based on the provided information
+- Natural
+- Human-friendly
+- Based on the available information
 - Honest about uncertainty
 
-It should explain:
+Normally keep the assessment around
+3-5 complete sentences.
 
-1. What matters in the current situation.
+Explain naturally:
+
+1. What matters right now.
 2. What the pattern could indicate.
-3. What uncertainty remains.
-4. How concerning the situation may be.
+3. What remains uncertain.
+4. How concerning it may be.
 5. What the owner should do next.
 
-Next steps:
+Do not repeat information unnecessarily.
 
-Provide 2-5 practical actions.
-
-Do NOT recommend:
-
-- Medication
-- Medication doses
-- Supplements
-- Home remedies
-- Guaranteed treatments
-- Medical procedures
+Next steps should contain 2-5 practical actions.
 
 ==================================================
 OUTPUT
 ==================================================
 
-Return ONLY JSON.
+Return ONLY valid JSON.
 
 No markdown.
 
@@ -407,7 +642,7 @@ FOLLOW_UP:
 
 {
   "status": "FOLLOW_UP",
-  "question": "ONE question only",
+  "question": "ONE useful question only",
   "assessment": "",
   "nextSteps": [],
   "urgent": false
@@ -418,7 +653,7 @@ FINAL:
 {
   "status": "FINAL",
   "question": "",
-  "assessment": "case-specific assessment",
+  "assessment": "natural case-specific response",
   "nextSteps": ["action 1", "action 2"],
   "urgent": false
 }
@@ -438,11 +673,12 @@ PREVIOUS HEALTH RECORDS
 ${healthHistory}
 
 ==================================================
-CURRENT OWNER QUESTION / SYMPTOMS
+CURRENT OWNER CONCERN
 ==================================================
 
 ${symptoms}
 
+==================================================
 LATEST OWNER MESSAGE
 ==================================================
 
@@ -461,6 +697,12 @@ FOLLOW-UP COUNT
 ${followUpCount}
 
 ==================================================
+INITIAL ASSESSMENT ALREADY GIVEN
+==================================================
+
+${finalAssessmentAlreadyGiven}
+
+==================================================
 LOCAL TRIAGE RESULT
 ==================================================
 
@@ -470,83 +712,105 @@ ${safeJson(triage)}
 TASK
 ==================================================
 
-Analyze the owner's current concern using the COMPLETE medical context.
+Analyze the owner's current concern using the
+COMPLETE pet medical context.
 
 Do not focus only on the latest symptom.
 
-If an important detail is missing and fewer than 3 follow-up questions
-have been asked, return FOLLOW_UP with exactly ONE question.
+Review the pet's history before deciding whether
+additional information is needed.
 
-When the initial assessment is already complete, return FINAL with a
-safe, non-diagnostic answer to the owner's current question.
+If relevant medical history changes how the
+current symptom should be understood, use that
+history in the response.
 
-Otherwise return FINAL.
+If an important detail is missing and fewer than
+3 follow-up questions have been asked, return
+FOLLOW_UP with exactly ONE useful question.
 
-If the local triage result indicates an emergency signal, preserve
-that urgency in the final response.
+If the initial assessment has already been
+completed and the owner is asking a follow-up
+question about the same concern, answer the
+question directly.
+
+Do not restart the health check.
+
+Do not unnecessarily ask another question when
+the available context is enough.
+
+If local triage indicates an emergency, preserve
+that urgency.
+
+Return FINAL when enough information is available.
 `;
 
   try {
     const ai = getGeminiClient();
 
-    const response = await generateGeminiResponse(ai, {
-      model: "gemini-3.1-flash-lite",
+    const response =
+      await generateGeminiResponse(ai, {
+        model: "gemini-3.1-flash-lite",
 
-      contents: userPrompt,
+        contents: userPrompt,
 
-      config: {
-        systemInstruction,
+        config: {
+          systemInstruction,
 
-        temperature: 0.2,
+          temperature: 0.35,
 
-        maxOutputTokens: 1800,
+          maxOutputTokens: 1800,
 
-        thinkingConfig: {
-          thinkingBudget: 256,
-        },
+          thinkingConfig: {
+            thinkingBudget: 256,
+          },
 
-        responseMimeType: "application/json",
+          responseMimeType:
+            "application/json",
 
-        responseSchema: {
-          type: Type.OBJECT,
+          responseSchema: {
+            type: Type.OBJECT,
 
-          properties: {
-            status: {
-              type: Type.STRING,
-              enum: ["FOLLOW_UP", "FINAL"],
-            },
-
-            question: {
-              type: Type.STRING,
-            },
-
-            assessment: {
-              type: Type.STRING,
-            },
-
-            nextSteps: {
-              type: Type.ARRAY,
-
-              items: {
+            properties: {
+              status: {
                 type: Type.STRING,
+
+                enum: [
+                  "FOLLOW_UP",
+                  "FINAL",
+                ],
+              },
+
+              question: {
+                type: Type.STRING,
+              },
+
+              assessment: {
+                type: Type.STRING,
+              },
+
+              nextSteps: {
+                type: Type.ARRAY,
+
+                items: {
+                  type: Type.STRING,
+                },
+              },
+
+              urgent: {
+                type: Type.BOOLEAN,
               },
             },
 
-            urgent: {
-              type: Type.BOOLEAN,
-            },
+            required: [
+              "status",
+              "question",
+              "assessment",
+              "nextSteps",
+              "urgent",
+            ],
           },
-
-          required: [
-            "status",
-            "question",
-            "assessment",
-            "nextSteps",
-            "urgent",
-          ],
         },
-      },
-    });
+      });
 
     const content =
       response.text?.trim() || "";
@@ -573,7 +837,7 @@ that urgency in the final response.
     }
 
     /*
-     * Never allow a fourth follow-up.
+     * Never allow a fourth follow-up question.
      */
     if (
       followUpCount >= 3 &&
@@ -585,12 +849,12 @@ that urgency in the final response.
         question: "",
 
         assessment:
-          "The available information is not enough to determine the exact cause of this concern from chat alone. Continue monitoring your pet closely and watch for changes in appetite, water intake, energy, behavior, or worsening symptoms.",
+          "I have enough information to give you a cautious view, although chat cannot confirm the exact cause. Based on what you've shared and your pet's history, the main thing now is to monitor how the symptoms change rather than assuming a definite diagnosis.",
 
         nextSteps: [
-          "Monitor the symptoms and your pet's overall behavior.",
+          "Monitor your pet's symptoms and overall behavior.",
           "Keep track of appetite, water intake, energy, and symptom frequency.",
-          "Contact a veterinarian if the symptoms persist or worsen.",
+          "Contact a veterinarian if the symptoms persist, worsen, or new warning signs appear.",
         ],
 
         urgent:
@@ -600,12 +864,25 @@ that urgency in the final response.
       };
     }
 
-    if (parsed.status === "FOLLOW_UP") {
+    /*
+     * FOLLOW-UP response
+     */
+    if (
+      parsed.status === "FOLLOW_UP"
+    ) {
+      const question =
+        cleanText(parsed.question);
+
+      if (!question) {
+        throw new Error(
+          "AI returned an empty follow-up question.",
+        );
+      }
+
       return {
         status: "FOLLOW_UP",
 
-        question:
-          String(parsed.question || "").trim(),
+        question,
 
         assessment: "",
 
@@ -618,13 +895,30 @@ that urgency in the final response.
       };
     }
 
-    if (parsed.status === "FINAL") {
+    /*
+     * FINAL response
+     */
+    if (
+      parsed.status === "FINAL"
+    ) {
+      const assessment =
+        cleanText(
+          parsed.assessment,
+        );
+
       const nextSteps =
-        Array.isArray(parsed.nextSteps)
+        Array.isArray(
+          parsed.nextSteps,
+        )
           ? parsed.nextSteps
               .filter(
                 (step) =>
-                  typeof step === "string" &&
+                  typeof step ===
+                    "string" &&
+                  step.trim(),
+              )
+              .map(
+                (step) =>
                   step.trim(),
               )
               .slice(0, 5)
@@ -636,9 +930,8 @@ that urgency in the final response.
         question: "",
 
         assessment:
-          String(
-            parsed.assessment || "",
-          ).trim(),
+          assessment ||
+          "I have reviewed the information available, but I cannot determine the exact cause from chat alone.",
 
         nextSteps:
           nextSteps.length > 0
@@ -649,9 +942,6 @@ that urgency in the final response.
                 "Contact a veterinarian if the concern persists or worsens.",
               ],
 
-        /*
-         * Local RED always wins.
-         */
         urgent:
           triage.level === "RED"
             ? true

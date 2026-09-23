@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, Link, useNavigate } from "react-router-dom";
-import { Menu, X, Sun, Moon } from "lucide-react";
+import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
+import { Bell, Menu, X, Sun, Moon } from "lucide-react";
 import { useAppContext } from "../../hooks/useAppContext";
 
 const navItems = [
@@ -20,6 +20,8 @@ function Navbar() {
   const menuRef = useRef(null);
 
   const navigate = useNavigate();
+  const location = useLocation();
+  const [healthNotification, setHealthNotification] = useState(null);
 
   const {
     isAuthenticated,
@@ -61,6 +63,46 @@ function Navbar() {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
   }, [isMenuOpen]);
+
+  useEffect(() => {
+    const handleHealthCheckReady = (event) => {
+      if (location.pathname === "/health-check") {
+        return;
+      }
+
+      setHealthNotification(event.detail || {});
+    };
+
+    window.addEventListener(
+      "smartPawHealthCheckReady",
+      handleHealthCheckReady,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "smartPawHealthCheckReady",
+        handleHealthCheckReady,
+      );
+    };
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!healthNotification) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(
+      () => setHealthNotification(null),
+      10000,
+    );
+
+    return () => window.clearTimeout(timeoutId);
+  }, [healthNotification]);
+
+  const openHealthNotification = () => {
+    setHealthNotification(null);
+    navigate("/health-check");
+  };
 
   const desktopLinkClass = ({ isActive }) =>
     `relative whitespace-nowrap px-2 py-2 text-[13px] font-medium transition-colors ${
@@ -165,6 +207,33 @@ function Navbar() {
           )}
         </button>
       </div>
+
+      {healthNotification && (
+        <div className="fixed right-4 top-20 z-[70] w-[calc(100vw-2rem)] max-w-[360px] sm:right-6">
+          <button
+            type="button"
+            onClick={openHealthNotification}
+            className="flex w-full items-start gap-3 rounded-2xl border border-orange-200 bg-white p-4 text-left shadow-2xl shadow-orange-500/10 transition hover:border-orange-400 dark:border-orange-500/30 dark:bg-[#111820]"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white">
+              <Bell size={17} />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-bold text-slate-900 dark:text-white">
+                AI health check ready
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
+                {healthNotification.status === "FOLLOW_UP"
+                  ? `${healthNotification.petName || "Your pet"} has a follow-up question waiting.`
+                  : `${healthNotification.petName || "Your pet"}'s health response is ready.`}
+              </span>
+              <span className="mt-2 block text-xs font-bold text-orange-600 dark:text-orange-400">
+                Open Health Check
+              </span>
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Mobile Navigation */}
       {isMenuOpen && (

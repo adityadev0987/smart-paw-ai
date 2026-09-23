@@ -38,7 +38,9 @@ export async function getPetProfile(petId) {
     medical: {
       healthStatus: clean(pet.medical?.healthStatus),
 
-      conditions: cleanArray(pet.medical?.conditions),
+      conditions: cleanArray(
+        pet.medical?.conditions,
+      ),
 
       previousIllnesses: cleanArray(
         pet.medical?.previousIllnesses,
@@ -118,10 +120,14 @@ export async function getPetProfile(petId) {
       foodBrand: clean(pet.nutrition?.foodBrand),
       feedingAmount: clean(pet.nutrition?.feedingAmount),
       mealsPerDay: clean(pet.nutrition?.mealsPerDay),
-      feedingSchedule: clean(pet.nutrition?.feedingSchedule),
+      feedingSchedule: clean(
+        pet.nutrition?.feedingSchedule,
+      ),
       treats: clean(pet.nutrition?.treats),
       humanFood: clean(pet.nutrition?.humanFood),
-      recentDietChange: clean(pet.nutrition?.recentDietChange),
+      recentDietChange: clean(
+        pet.nutrition?.recentDietChange,
+      ),
       waterIntake: clean(pet.nutrition?.waterIntake),
       waterNotes: clean(pet.nutrition?.waterNotes),
     },
@@ -272,9 +278,11 @@ export async function getHealthRecords(petId) {
 
   return records.map((record) => ({
     id: record._id.toString(),
-    title: record.title,
-    date: record.date,
-    type: record.type,
+    title: record.title || "",
+    date: record.date || "",
+    type: record.type || "Other",
     notes: record.notes || "",
+    createdAt: record.createdAt || null,
+    updatedAt: record.updatedAt || null,
   }));
 }

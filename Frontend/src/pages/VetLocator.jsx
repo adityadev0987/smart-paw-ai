@@ -305,9 +305,6 @@ function VetLocator() {
               <div className="mt-5 rounded-2xl bg-orange-50 p-4 text-sm font-semibold leading-6 text-orange-800 dark:bg-orange-500/10 dark:text-orange-200">
                 {petFacts[factIndex]}
               </div>
-              <p className="mt-4 text-xs font-bold uppercase tracking-[0.15em] text-slate-400">
-                Helpful pet fact
-              </p>
             </div>
           </div>
         )}
