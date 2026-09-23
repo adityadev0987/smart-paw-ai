@@ -121,6 +121,12 @@ const petSchema = new mongoose.Schema(
       trim: true,
     },
 
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+    },
+
     age: {
       type: Number,
       required: true,

@@ -27,6 +27,7 @@ const emptyPet = {
   name: "",
   species: "Cat",
   breed: "",
+  bio: "",
   age: "",
   dateOfBirth: "",
   gender: "",
@@ -1423,6 +1424,19 @@ function ProfileEditor({
               includeDetails
             />
           </div>
+
+          <label className="mt-5 block">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">
+              Bio
+            </span>
+            <textarea
+              value={draft.bio ?? ""}
+              onChange={(event) => update("bio", event.target.value)}
+              placeholder="Add a short bio about your pet"
+              rows={4}
+              className="w-full resize-y rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-100 dark:border-zinc-700 dark:bg-[#111820] dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-orange-500 dark:focus:ring-orange-950/40"
+            />
+          </label>
 
           <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-700">
             <button
