@@ -12,7 +12,6 @@ import {
   Sparkles,
   Stethoscope,
   Trash2,
-  UserRound,
   X,
 } from "lucide-react";
 
@@ -1227,21 +1226,6 @@ function PetIdCard({
               </div>
             </section>
 
-            <section className="flex min-h-[260px] flex-col items-center justify-center border-t border-orange-200 bg-white p-8 text-center dark:border-orange-500/20 dark:bg-[#111820] sm:min-h-[300px]">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-orange-500 dark:bg-orange-500/10 dark:text-orange-400">
-                <UserRound size={26} />
-              </div>
-              <p className="mt-5 text-xs font-black uppercase tracking-[0.22em] text-orange-500 dark:text-orange-400">
-                Community
-              </p>
-              <h2 className="mt-2 text-2xl font-black text-zinc-900 dark:text-white sm:text-3xl">
-                Coming Soon
-              </h2>
-              <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                A future space for pet parents to connect, share experiences,
-                and interact with the Smart Paw community.
-              </p>
-            </section>
           </div>
         )}
       </div>

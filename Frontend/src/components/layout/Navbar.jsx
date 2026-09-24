@@ -9,7 +9,6 @@ const navItems = [
   { label: "Health Check", path: "/health-check" },
   { label: "Planner", path: "/planner" },
   { label: "Pet Profile", path: "/pet-profile" },
-  { label: "Community", path: "/health-records" },
   { label: "Recommendations", path: "/recommendation" },
   { label: "Breed Insights", path: "/breed-insights" },
   { label: "Vet Locator", path: "/vet-locator" },

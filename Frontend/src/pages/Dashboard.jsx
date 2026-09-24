@@ -392,12 +392,6 @@ function Dashboard() {
                 </p>
               </div>
 
-              <Link
-                to="/health-records"
-                className="shrink-0 text-sm font-semibold text-orange-500 transition hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300"
-              >
-                View records →
-              </Link>
             </div>
 
             <div className="mt-4">
@@ -505,23 +499,6 @@ function Dashboard() {
               </p>
             </Link>
 
-            {/* Health Records */}
-            <Link
-              to="/health-records"
-              className="group rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-orange-200 hover:shadow-md dark:border-gray-800 dark:bg-[#111820] dark:hover:border-orange-500/30"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-500 transition group-hover:bg-orange-500 group-hover:text-white dark:bg-orange-500/10 dark:text-orange-400 dark:group-hover:bg-orange-500 dark:group-hover:text-white">
-                <FileHeart className="h-5 w-5" />
-              </div>
-
-              <h3 className="mt-4 font-semibold text-gray-900 dark:text-white">
-                Health Records
-              </h3>
-
-              <p className="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
-                View and manage {currentPet.name}'s health history.
-              </p>
-            </Link>
           </div>
         </div>
       </div>

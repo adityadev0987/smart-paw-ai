@@ -5,7 +5,6 @@ import {
   PawPrint,
   Stethoscope,
   BookOpen,
-  UsersRound,
   Sparkles,
   ArrowRight,
 } from "lucide-react";
@@ -59,14 +58,6 @@ const features = [
       "Explore useful information about breeds, care and behavior.",
     icon: BookOpen,
     path: "/breed-insights",
-  },
-  {
-    label: "Community",
-    title: "Pet Community",
-    description:
-      "Connect, share, and learn with fellow pet parents.",
-    icon: UsersRound,
-    path: "/health-records",
   },
   {
     label: "Smart Care",
