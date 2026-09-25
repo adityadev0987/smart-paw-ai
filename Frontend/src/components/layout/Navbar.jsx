@@ -12,6 +12,7 @@ const navItems = [
   { label: "Recommendations", path: "/recommendation" },
   { label: "Breed Insights", path: "/breed-insights" },
   { label: "Vet Locator", path: "/vet-locator" },
+  { label: "Community", path: "/community" },
 ];
 
 function Navbar() {

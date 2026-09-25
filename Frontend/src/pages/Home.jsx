@@ -7,6 +7,7 @@ import {
   BookOpen,
   Sparkles,
   ArrowRight,
+  UsersRound,
 } from "lucide-react";
 import { useAppContext } from "../hooks/useAppContext";
 
@@ -66,6 +67,14 @@ const features = [
       "Explore simple recommendations for everyday pet care.",
     icon: HeartPulse,
     path: "/recommendation",
+  },
+  {
+    label: "Pet Parents",
+    title: "Community",
+    description:
+      "Connect with pet parents and explore helpful pet-care discussions.",
+    icon: UsersRound,
+    path: "/community",
   },
 ];
 

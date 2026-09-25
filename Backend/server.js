@@ -9,6 +9,8 @@ import taskRoutes from "./routes/taskRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import vetRoutes from "./routes/vetRoutes.js";
+import communityRoutes from "./routes/communityRoutes.js";
+
 import { protect } from "./middleware/authMiddleware.js";
 
 dotenv.config();
@@ -48,6 +50,11 @@ app.use("/api/health-records", healthRecordRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/vets", vetRoutes);
+
+// ==========================================
+// COMMUNITY
+// ==========================================
+app.use("/api/community", communityRoutes);
 
 async function startServer() {
   await connectDB();

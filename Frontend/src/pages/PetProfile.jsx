@@ -1,4 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
@@ -12,6 +13,7 @@ import {
   Sparkles,
   Stethoscope,
   Trash2,
+  UsersRound,
   X,
 } from "lucide-react";
 
@@ -1097,6 +1099,19 @@ function PetIdCard({
                     className="transition group-hover:translate-x-1"
                   />
                 </button>
+                <Link
+                  to="/community"
+                  className="group mt-1 flex min-h-11 w-full items-center justify-between rounded-xl px-2 text-sm font-black text-orange-600 transition hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-500/10"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <UsersRound size={17} />
+                    Community
+                  </span>
+                  <ArrowRight
+                    size={17}
+                    className="transition group-hover:translate-x-1"
+                  />
+                </Link>
               </div>
             </section>
 
@@ -1221,6 +1236,15 @@ function PetIdCard({
                       Medical Records
                       <ArrowRight size={17} className="transition group-hover:translate-x-1" />
                     </button>
+
+                    <Link
+                      to="/community"
+                      className="group inline-flex min-h-10 items-center justify-center gap-2 text-sm font-black text-orange-600 transition hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
+                    >
+                      <UsersRound size={17} />
+                      Community
+                      <ArrowRight size={17} className="transition group-hover:translate-x-1" />
+                    </Link>
                   </div>
                 </div>
               </div>
