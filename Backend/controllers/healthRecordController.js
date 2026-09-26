@@ -114,21 +114,16 @@ export const updateHealthRecord = async (req, res) => {
       });
     }
 
-    const record = await HealthRecord.findById(req.params.id);
-
-    if (!record) {
-      return res.status(404).json({
-        success: false,
-        message: "Health record not found.",
-      });
-    }
-
-    const pet = await Pet.findOne({
-      _id: record.petId,
+    const ownedPetIds = await Pet.find({
       userId: req.user.id,
+    }).distinct("_id");
+
+    const record = await HealthRecord.findOne({
+      _id: req.params.id,
+      petId: { $in: ownedPetIds },
     });
 
-    if (!pet) {
+    if (!record) {
       return res.status(404).json({
         success: false,
         message: "Health record not found.",
@@ -166,7 +161,14 @@ export const deleteHealthRecord = async (req, res) => {
       });
     }
 
-    const record = await HealthRecord.findById(req.params.id);
+    const ownedPetIds = await Pet.find({
+      userId: req.user.id,
+    }).distinct("_id");
+
+    const record = await HealthRecord.findOne({
+      _id: req.params.id,
+      petId: { $in: ownedPetIds },
+    });
 
     if (!record) {
       return res.status(404).json({
@@ -175,19 +177,10 @@ export const deleteHealthRecord = async (req, res) => {
       });
     }
 
-    const pet = await Pet.findOne({
-      _id: record.petId,
-      userId: req.user.id,
+    await HealthRecord.deleteOne({
+      _id: req.params.id,
+      petId: { $in: ownedPetIds },
     });
-
-    if (!pet) {
-      return res.status(404).json({
-        success: false,
-        message: "Health record not found.",
-      });
-    }
-
-    await HealthRecord.findByIdAndDelete(req.params.id);
 
     res.status(200).json({
       success: true,

@@ -37,7 +37,7 @@ async function parseResponse(response) {
   try {
     result = await response.json();
   } catch {
-    result = null;
+    // Keep null for non-JSON responses.
   }
 
   // Token expired / unauthorized
@@ -193,6 +193,31 @@ export async function deletePet(id) {
   const result = await parseResponse(response);
 
   return result;
+}
+
+export async function getCommunityPostsForPet(petId) {
+  if (!petId) {
+    throw new Error("Pet ID is required.");
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/community/pets/${encodeURIComponent(petId)}/posts`,
+    {
+      method: "GET",
+      headers: {
+        ...getAuthHeaders(),
+      },
+    },
+  );
+
+  const result = await parseResponse(response);
+  return Array.isArray(result?.posts) ? result.posts : [];
+}
+
+export function getCommunityMediaUrl(path) {
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  return new URL(path, API_BASE_URL).toString();
 }
 
 // --------------------------------------------------

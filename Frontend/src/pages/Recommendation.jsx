@@ -19,10 +19,17 @@ import { useAppContext } from "../hooks/useAppContext";
 
 const HEALTH_CHECK_STORAGE_KEY = "smartPawLatestHealthCheck";
 
+function getHealthCheckStorageKey(userId) {
+  return userId
+    ? `${HEALTH_CHECK_STORAGE_KEY}:${userId}`
+    : null;
+}
+
 function Recommendation() {
   const {
     pets = [],
     currentPet,
+    currentUser,
     setCurrentPet,
     isPetLoading,
   } = useAppContext();
@@ -41,8 +48,10 @@ function Recommendation() {
   useEffect(() => {
     const loadLatestHealthCheck = () => {
       try {
+        const userId = currentUser?._id || currentUser?.id || "";
+        const storageKey = getHealthCheckStorageKey(userId);
         const stored = localStorage.getItem(
-          HEALTH_CHECK_STORAGE_KEY,
+          storageKey,
         );
 
         if (!stored) {
@@ -95,7 +104,7 @@ function Recommendation() {
         loadLatestHealthCheck,
       );
     };
-  }, [currentPet?._id]);
+  }, [currentPet?._id, currentUser?._id, currentUser?.id]);
 
   useEffect(() => {
     setSelectedCategory("All");

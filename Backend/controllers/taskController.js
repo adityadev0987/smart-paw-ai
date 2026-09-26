@@ -135,21 +135,16 @@ export const updateTask = async (req, res) => {
       });
     }
 
-    const task = await Task.findById(req.params.id);
-
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        message: "Task not found.",
-      });
-    }
-
-    const pet = await Pet.findOne({
-      _id: task.petId,
+    const ownedPetIds = await Pet.find({
       userId: req.user.id,
+    }).distinct("_id");
+
+    const task = await Task.findOne({
+      _id: req.params.id,
+      petId: { $in: ownedPetIds },
     });
 
-    if (!pet) {
+    if (!task) {
       return res.status(404).json({
         success: false,
         message: "Task not found.",
@@ -187,7 +182,14 @@ export const deleteTask = async (req, res) => {
       });
     }
 
-    const task = await Task.findById(req.params.id);
+    const ownedPetIds = await Pet.find({
+      userId: req.user.id,
+    }).distinct("_id");
+
+    const task = await Task.findOne({
+      _id: req.params.id,
+      petId: { $in: ownedPetIds },
+    });
 
     if (!task) {
       return res.status(404).json({
@@ -196,19 +198,10 @@ export const deleteTask = async (req, res) => {
       });
     }
 
-    const pet = await Pet.findOne({
-      _id: task.petId,
-      userId: req.user.id,
+    await Task.deleteOne({
+      _id: req.params.id,
+      petId: { $in: ownedPetIds },
     });
-
-    if (!pet) {
-      return res.status(404).json({
-        success: false,
-        message: "Task not found.",
-      });
-    }
-
-    await Task.findByIdAndDelete(req.params.id);
 
     res.status(200).json({
       success: true,

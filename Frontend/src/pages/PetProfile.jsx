@@ -22,6 +22,8 @@ import {
   createPet,
   updatePet as apiUpdatePet,
   deletePet as apiDeletePet,
+  getCommunityMediaUrl,
+  getCommunityPostsForPet,
 } from "../services/api";
 
 const emptyPet = {
@@ -1252,8 +1254,98 @@ function PetIdCard({
 
           </div>
         )}
+        {!addingPet && <PetCommunityPosts key={pet?._id || pet?.id} pet={pet} />}
       </div>
     </div>
+  );
+}
+
+function PetCommunityPosts({ pet }) {
+  const petId = pet?._id || pet?.id;
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    getCommunityPostsForPet(petId)
+      .then((loadedPosts) => {
+        if (isCurrent) setPosts(loadedPosts);
+      })
+      .catch((loadError) => {
+        if (isCurrent) setError(loadError.message || "Unable to load pet posts.");
+      })
+      .finally(() => {
+        if (isCurrent) setLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [petId, retryKey]);
+
+  return (
+    <section className="mt-6 rounded-[28px] border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-[#111820] sm:p-6">
+      <div className="mb-4 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-500">Community</p>
+          <h2 className="mt-1 text-xl font-black text-zinc-900 dark:text-white">{pet?.name ? `${pet.name}'s Posts` : "Posts"}</h2>
+        </div>
+        {!loading && !error && <span className="text-xs font-semibold text-zinc-400">{posts.length} {posts.length === 1 ? "post" : "posts"}</span>}
+      </div>
+
+      {loading ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((item) => <div key={item} className="aspect-square animate-pulse rounded-xl bg-zinc-100 dark:bg-zinc-800" />)}
+        </div>
+      ) : error ? (
+        <div className="py-8 text-center">
+          <p role="alert" className="text-sm text-red-500">{error}</p>
+          <button type="button" onClick={() => { setLoading(true); setError(""); setRetryKey((key) => key + 1); }} className="mt-3 rounded-lg bg-orange-500 px-4 py-2 text-xs font-bold text-white">Try again</button>
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="rounded-xl bg-zinc-50 px-4 py-10 text-center dark:bg-[#18212b]">
+          <p className="text-sm font-bold text-zinc-600 dark:text-zinc-300">No posts yet</p>
+          <p className="mt-1 text-xs text-zinc-400">Community posts about {pet?.name || "this pet"} will appear here.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {posts.map((post) => {
+            const thumbnail = Array.isArray(post.media) ? post.media[0] : "";
+            return (
+              <Link
+                key={post._id}
+                to={`/community/posts/${post._id}`}
+                aria-label={`Open ${post.type === "adoption" ? "adoption " : ""}post for ${pet?.name || "pet"}`}
+                className="block min-w-0 overflow-hidden rounded-xl border border-zinc-200 bg-white transition hover:border-orange-300 hover:shadow-md dark:border-zinc-700 dark:bg-[#18212b]"
+              >
+                {thumbnail ? (
+                  <div className="flex aspect-square w-full items-center justify-center bg-zinc-100 dark:bg-[#111820]">
+                    <img
+                      src={getCommunityMediaUrl(thumbnail)}
+                      alt={post.content || `${pet?.name || "Pet"} community post`}
+                      loading="lazy"
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex aspect-square flex-col justify-between bg-orange-50 p-3 dark:bg-orange-500/10">
+                    <span className="text-[9px] font-black uppercase tracking-wider text-orange-600 dark:text-orange-400">
+                      {post.type === "adoption" ? "Adoption" : "Community post"}
+                    </span>
+                    <p className="line-clamp-5 whitespace-pre-wrap text-xs font-semibold leading-5 text-zinc-700 dark:text-zinc-200">
+                      {post.content || post.caption || "A moment shared with the community."}
+                    </p>
+                  </div>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -87,7 +87,13 @@ export default function Register() {
         formData.password,
       );
 
-      navigate("/dashboard");
+      navigate("/login", {
+        replace: true,
+        state: {
+          message: "Registration successful. Please log in.",
+          email: formData.email.trim(),
+        },
+      });
     } catch (err) {
       console.error("Registration error:", err);
 

@@ -9,11 +9,12 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAppContext } from "../hooks/useAppContext";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { login, theme } = useAppContext();
 
@@ -61,7 +62,7 @@ export default function Login() {
         formData.password,
       );
 
-      navigate("/dashboard");
+      navigate(location.state?.from || "/dashboard", { replace: true });
     } catch (err) {
       console.error("Login error:", err);
 

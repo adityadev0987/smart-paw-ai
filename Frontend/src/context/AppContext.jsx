@@ -5,6 +5,7 @@ import {
 } from "react";
 
 import { getPets } from "../services/api";
+import { registerUser } from "../services/auth";
 
 export const AppContext = createContext(null);
 
@@ -171,6 +172,25 @@ export function AppProvider({ children }) {
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleAuthenticationExpired = () => {
+      clearAuthentication();
+      setIsAuthChecking(false);
+    };
+
+    window.addEventListener(
+      "smartPawAuthExpired",
+      handleAuthenticationExpired,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "smartPawAuthExpired",
+        handleAuthenticationExpired,
+      );
     };
   }, []);
 
@@ -431,6 +451,18 @@ export function AppProvider({ children }) {
     };
   };
 
+  const register = async (
+    name,
+    email,
+    password,
+  ) => {
+    return registerUser({
+      name,
+      email,
+      password,
+    });
+  };
+
   // --------------------------------------------------
   // Logout
   // --------------------------------------------------
@@ -518,6 +550,7 @@ export function AppProvider({ children }) {
         isAuthChecking,
 
         // Authentication
+        register,
         login,
         logout,
         clearAuthentication,

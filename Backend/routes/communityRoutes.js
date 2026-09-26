@@ -3,8 +3,10 @@ import express from "express";
 import {
   // Community posts
   createCommunityPost,
+  updateCommunityPost,
   getCommunityFeed,
   getCommunityPost,
+  getPetCommunityPosts,
   deleteCommunityPost,
 
   // Likes
@@ -21,6 +23,7 @@ import {
   getFollowStatus,
   getFollowers,
   getFollowing,
+  getMyFollowing,
 
   // Adoption
   createAdoptionRequest,
@@ -41,30 +44,43 @@ const router = express.Router();
 router.get(
   "/posts",
   protect,
-  getCommunityFeed,
+  getCommunityFeed
 );
 
 // GET SINGLE POST
 router.get(
   "/posts/:postId",
   protect,
-  getCommunityPost,
+  getCommunityPost
 );
 
 // CREATE COMMUNITY POST
 router.post(
   "/posts",
   protect,
-  createCommunityPost,
+  createCommunityPost
+);
+
+// GET ACTIVE POSTS FOR AN OWNED PET PROFILE
+router.get(
+  "/pets/:petId/posts",
+  protect,
+  getPetCommunityPosts
+);
+
+// UPDATE COMMUNITY POST (OWNER ONLY)
+router.put(
+  "/posts/:postId",
+  protect,
+  updateCommunityPost
 );
 
 // DELETE COMMUNITY POST
 router.delete(
   "/posts/:postId",
   protect,
-  deleteCommunityPost,
+  deleteCommunityPost
 );
-
 
 // ==========================================
 // LIKE / UNLIKE
@@ -73,9 +89,8 @@ router.delete(
 router.post(
   "/posts/:postId/like",
   protect,
-  toggleLike,
+  toggleLike
 );
-
 
 // ==========================================
 // COMMENTS
@@ -85,23 +100,22 @@ router.post(
 router.post(
   "/posts/:postId/comments",
   protect,
-  addComment,
+  addComment
 );
 
 // GET COMMENTS
 router.get(
   "/posts/:postId/comments",
   protect,
-  getComments,
+  getComments
 );
 
 // DELETE COMMENT
 router.delete(
   "/posts/:postId/comments/:commentId",
   protect,
-  deleteComment,
+  deleteComment
 );
-
 
 // ==========================================
 // FOLLOW SYSTEM
@@ -111,37 +125,42 @@ router.delete(
 router.post(
   "/users/:userId/follow",
   protect,
-  followUser,
+  followUser
 );
 
 // UNFOLLOW USER
 router.delete(
   "/users/:userId/follow",
   protect,
-  unfollowUser,
+  unfollowUser
 );
 
 // CHECK FOLLOW STATUS
 router.get(
   "/users/:userId/follow-status",
   protect,
-  getFollowStatus,
+  getFollowStatus
 );
 
 // GET FOLLOWERS
 router.get(
   "/users/:userId/followers",
   protect,
-  getFollowers,
+  getFollowers
 );
 
 // GET FOLLOWING
 router.get(
-  "/users/:userId/following",
+  "/users/me/following",
   protect,
-  getFollowing,
+  getMyFollowing
 );
 
+router.get(
+  "/users/:userId/following",
+  protect,
+  getFollowing
+);
 
 // ==========================================
 // ADOPTION
@@ -151,30 +170,29 @@ router.get(
 router.post(
   "/posts/:postId/adoption-request",
   protect,
-  createAdoptionRequest,
+  createAdoptionRequest
 );
 
 // GET MY ADOPTION REQUESTS
 router.get(
   "/adoption-requests/mine",
   protect,
-  getMyAdoptionRequests,
+  getMyAdoptionRequests
 );
 
 // GET RECEIVED ADOPTION REQUESTS
 router.get(
   "/adoption-requests/received",
   protect,
-  getReceivedAdoptionRequests,
+  getReceivedAdoptionRequests
 );
 
 // ACCEPT / REJECT ADOPTION REQUEST
 router.patch(
   "/adoption-requests/:requestId",
   protect,
-  updateAdoptionRequest,
+  updateAdoptionRequest
 );
-
 
 // ==========================================
 // EXPORT ROUTER

@@ -13,6 +13,9 @@ import communityRoutes from "./routes/communityRoutes.js";
 
 import { protect } from "./middleware/authMiddleware.js";
 
+import uploadRoutes from "./routes/uploadRoutes.js";
+import path from "path";
+
 dotenv.config();
 
 const app = express();
@@ -20,6 +23,11 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
+app.use(
+  "/uploads",
+  express.static(path.join(process.cwd(), "uploads")),
+);
 
 app.get("/", (req, res) => {
   res.json({
@@ -65,5 +73,7 @@ async function startServer() {
     );
   });
 }
+
+app.use("/api/uploads", uploadRoutes);
 
 startServer();

@@ -1,6 +1,11 @@
 import CommunityPost from "../models/CommunityPost.js";
 import Follow from "../models/Follow.js";
 import AdoptionRequest from "../models/AdoptionRequest.js";
+import Pet from "../models/Pet.js";
+import mongoose from "mongoose";
+
+const publicPetFields = "name species breed age gender color bio";
+const communityPostTypes = ["normal", "adoption"];
 
 function getUserId(req) {
   return req.user?._id || req.user?.id || req.userId;
@@ -8,29 +13,59 @@ function getUserId(req) {
 
 function serializePost(post) {
   const item = post.toObject ? post.toObject() : post;
+  const publicUser = item.userId
+    ? {
+        _id: item.userId._id,
+        name: item.userId.name,
+      }
+    : null;
+  const publicPet = item.petId
+    ? {
+        _id: item.petId._id,
+        name: item.petId.name,
+        species: item.petId.species,
+        breed: item.petId.breed,
+        age: item.petId.age,
+        gender: item.petId.gender,
+        color: item.petId.color,
+        bio: item.petId.bio,
+      }
+    : null;
+
+  const {
+    likes,
+    comments,
+    userId,
+    petId,
+    ...safeItem
+  } = item;
 
   return {
-    ...item,
-    caption: item.content,
-    type: item.postType,
-    likesCount: item.likeCount,
-    commentsCount: item.commentCount,
+    ...safeItem,
+    userId: publicUser,
+    petId: publicPet,
+    caption: safeItem.content,
+    type: safeItem.postType,
+    likesCount: safeItem.likeCount,
+    commentsCount: safeItem.commentCount,
   };
 }
 
 export async function getCommunityFeed(req, res) {
   try {
     const type = req.query.type;
-    const postType = type === "lost" ? "lost_found" : type;
-    const filter = { isActive: true };
+    const filter = {
+      isActive: true,
+      postType: { $in: communityPostTypes },
+    };
 
-    if (["normal", "adoption", "lost_found"].includes(postType)) {
-      filter.postType = postType;
+    if (communityPostTypes.includes(type)) {
+      filter.postType = type;
     }
 
     const posts = await CommunityPost.find(filter)
-      .populate("userId", "name email")
-      .populate("petId")
+      .populate("userId", "name")
+      .populate("petId", publicPetFields)
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
@@ -52,9 +87,10 @@ export async function getCommunityPost(req, res) {
     const post = await CommunityPost.findOne({
       _id: req.params.postId,
       isActive: true,
+      postType: { $in: communityPostTypes },
     })
-      .populate("userId", "name email")
-      .populate("petId");
+      .populate("userId", "name")
+      .populate("petId", publicPetFields);
 
     if (!post) {
       return res.status(404).json({
@@ -76,12 +112,63 @@ export async function getCommunityPost(req, res) {
   }
 }
 
+export async function getPetCommunityPosts(req, res) {
+  try {
+    const userId = getUserId(req);
+    const { petId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required.",
+      });
+    }
+
+    if (!mongoose.isValidObjectId(petId)) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid pet ID is required.",
+      });
+    }
+
+    // Pet profiles are private and scoped to the authenticated owner.
+    const pet = await Pet.findOne({ _id: petId, userId }).select("_id");
+    if (!pet) {
+      return res.status(404).json({
+        success: false,
+        message: "Pet not found.",
+      });
+    }
+
+    const posts = await CommunityPost.find({
+      petId: pet._id,
+      isActive: true,
+      postType: { $in: communityPostTypes },
+    })
+      .populate("userId", "name")
+      .populate("petId", publicPetFields)
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: posts.length,
+      posts: posts.map(serializePost),
+    });
+  } catch (error) {
+    console.error("Get pet community posts error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch pet community posts.",
+    });
+  }
+}
+
 export async function createCommunityPost(req, res) {
   try {
     const userId = getUserId(req);
     const { petId, type = "normal", caption = "", content = "", media = [] } = req.body;
     const postContent = String(caption || content).trim();
-    const postType = type === "lost" ? "lost_found" : type;
+    const postType = type;
 
     if (!userId) {
       return res.status(401).json({
@@ -97,10 +184,29 @@ export async function createCommunityPost(req, res) {
       });
     }
 
-    if (!["normal", "adoption", "lost_found"].includes(postType)) {
+    if (!communityPostTypes.includes(postType)) {
       return res.status(400).json({
         success: false,
         message: "Invalid community post type.",
+      });
+    }
+
+    if (!Array.isArray(media) || media.length > 5 || media.some((url) => typeof url !== "string" || !url.trim() || url.length > 2048)) {
+      return res.status(400).json({
+        success: false,
+        message: "Post photos must be a list of up to 5 valid image URLs.",
+      });
+    }
+
+    const pet = await Pet.findOne({
+      _id: petId,
+      userId,
+    });
+
+    if (!pet) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to use this pet.",
       });
     }
 
@@ -109,12 +215,12 @@ export async function createCommunityPost(req, res) {
       petId,
       postType,
       content: postContent,
-      media: Array.isArray(media) ? media : [],
+      media: media.map((url) => url.trim()),
     });
 
     await post.populate([
-      { path: "userId", select: "name email" },
-      { path: "petId" },
+      { path: "userId", select: "name" },
+      { path: "petId", select: publicPetFields },
     ]);
 
     return res.status(201).json({
@@ -130,6 +236,43 @@ export async function createCommunityPost(req, res) {
   }
 }
 
+export async function updateCommunityPost(req, res) {
+  try {
+    const userId = getUserId(req);
+    const postContent = String(req.body.caption ?? req.body.content ?? "").trim();
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Authentication required." });
+    }
+    if (!postContent || postContent.length > 2000) {
+      return res.status(400).json({ success: false, message: "Post content is required and must be 2000 characters or fewer." });
+    }
+
+    const post = await CommunityPost.findOne({
+      _id: req.params.postId,
+      userId,
+      isActive: true,
+      postType: { $in: communityPostTypes },
+    });
+
+    if (!post) {
+      return res.status(404).json({ success: false, message: "Post not found." });
+    }
+
+    post.content = postContent;
+    await post.save();
+    await post.populate([
+      { path: "userId", select: "name" },
+      { path: "petId", select: publicPetFields },
+    ]);
+
+    return res.status(200).json({ success: true, post: serializePost(post) });
+  } catch (error) {
+    console.error("Update community post error:", error);
+    return res.status(500).json({ success: false, message: "Failed to update community post." });
+  }
+}
+
 export async function deleteCommunityPost(req, res) {
   try {
     const userId = getUserId(req);
@@ -137,6 +280,7 @@ export async function deleteCommunityPost(req, res) {
       _id: req.params.postId,
       userId,
       isActive: true,
+      postType: { $in: communityPostTypes },
     });
 
     if (!post) {
@@ -186,6 +330,7 @@ export async function toggleLike(req, res) {
     const post = await CommunityPost.findOne({
       _id: postId,
       isActive: true,
+      postType: { $in: communityPostTypes },
     });
 
     if (!post) {
@@ -286,6 +431,7 @@ export async function addComment(req, res) {
     const post = await CommunityPost.findOne({
       _id: postId,
       isActive: true,
+      postType: { $in: communityPostTypes },
     });
 
     if (!post) {
@@ -346,10 +492,11 @@ export async function getComments(req, res) {
     const post = await CommunityPost.findOne({
       _id: postId,
       isActive: true,
+      postType: { $in: communityPostTypes },
     })
       .populate(
         "comments.userId",
-        "name email",
+        "name",
       )
       .lean();
 
@@ -367,7 +514,6 @@ export async function getComments(req, res) {
           ? {
               id: comment.userId._id,
               name: comment.userId.name,
-              email: comment.userId.email,
             }
           : null,
         text: comment.text,
@@ -422,6 +568,7 @@ export async function deleteComment(req, res) {
     const post = await CommunityPost.findOne({
       _id: postId,
       isActive: true,
+      postType: { $in: communityPostTypes },
     });
 
     if (!post) {
@@ -641,7 +788,7 @@ export async function getFollowers(req, res) {
     const followers = await Follow.find({
       following: userId,
     })
-      .populate("follower", "name email")
+      .populate("follower", "name")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -681,7 +828,7 @@ export async function getFollowing(req, res) {
     const following = await Follow.find({
       follower: userId,
     })
-      .populate("following", "name email")
+      .populate("following", "name")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -699,6 +846,26 @@ export async function getFollowing(req, res) {
       success: false,
       message: "Failed to fetch following.",
     });
+  }
+}
+
+export async function getMyFollowing(req, res) {
+  try {
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Authentication required." });
+    }
+
+    const following = await Follow.find({ follower: userId })
+      .populate("following", "name")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const users = following.map((item) => item.following).filter(Boolean);
+    return res.status(200).json({ success: true, following: users, count: users.length });
+  } catch (error) {
+    console.error("Get my following error:", error);
+    return res.status(500).json({ success: false, message: "Failed to fetch followed users." });
   }
 }
 
@@ -822,7 +989,7 @@ export async function getMyAdoptionRequests(req, res) {
       )
       .populate(
         "ownerId",
-        "name email",
+        "name",
       )
       .populate(
         "postId",
@@ -876,7 +1043,7 @@ export async function getReceivedAdoptionRequests(req, res) {
       )
       .populate(
         "requesterId",
-        "name email",
+        "name",
       )
       .populate(
         "postId",

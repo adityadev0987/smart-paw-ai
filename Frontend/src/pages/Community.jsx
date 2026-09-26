@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { useAppContext } from "../hooks/useAppContext";
 import {
   Heart,
   MessageCircle,
   Share2,
+  Pencil,
   Plus,
   PawPrint,
   Search,
@@ -10,15 +13,25 @@ import {
   Users,
   HeartHandshake,
   MapPin,
-  MoreHorizontal,
   Image as ImageIcon,
   Smile,
-  Bookmark,
   ChevronRight,
   Sparkles,
+  Send,
+  Trash2,
+  UserPlus,
+  UserCheck,
+  X,
 } from "lucide-react";
 
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_ORIGIN = new URL(API_BASE_URL).origin;
+const MAX_COMMUNITY_IMAGES = 5;
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+
+function getMediaUrl(url) {
+  return url?.startsWith("http") ? url : `${API_ORIGIN}${url}`;
+}
 
 function getAuthHeaders() {
   const token = localStorage.getItem("smartPawToken");
@@ -43,18 +56,15 @@ function formatDate(date) {
   if (diff < 60) return "Just now";
 
   if (diff < 3600) {
-    const minutes = Math.floor(diff / 60);
-    return `${minutes}m ago`;
+    return `${Math.floor(diff / 60)}m ago`;
   }
 
   if (diff < 86400) {
-    const hours = Math.floor(diff / 3600);
-    return `${hours}h ago`;
+    return `${Math.floor(diff / 3600)}h ago`;
   }
 
   if (diff < 604800) {
-    const days = Math.floor(diff / 86400);
-    return `${days}d ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
   }
 
   return created.toLocaleDateString("en-IN", {
@@ -63,29 +73,87 @@ function formatDate(date) {
   });
 }
 
+async function apiRequest(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...getAuthHeaders(),
+      ...(options.headers || {}),
+    },
+  });
+
+  let data = null;
+
+  try {
+    data = await response.json();
+  } catch {
+    // Non-JSON responses are handled with the default null value.
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message || "Something went wrong. Please try again.",
+    );
+  }
+
+  return data;
+}
+
 function Community() {
-  const [activeSection, setActiveSection] =
-    useState("feed");
+  const { postId: sharedPostId } = useParams();
+  const { currentUser } = useAppContext();
+  const [activeSection, setActiveSection] = useState("feed");
 
   const [posts, setPosts] = useState([]);
+  const [pets, setPets] = useState([]);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
+  const [petsLoading, setPetsLoading] = useState(true);
 
-  const [error, setError] =
-    useState("");
+  const [error, setError] = useState("");
+  const [petsError, setPetsError] = useState("");
 
   const [showCreatePost, setShowCreatePost] =
     useState(false);
 
-  const [caption, setCaption] =
+  const [caption, setCaption] = useState("");
+  const [editingPost, setEditingPost] = useState(null);
+  const [editCaption, setEditCaption] = useState("");
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [selectedImages, setSelectedImages] = useState([]);
+  const [uploadError, setUploadError] = useState("");
+  const [postType, setPostType] = useState("normal");
+  const [selectedPetId, setSelectedPetId] =
     useState("");
 
-  const [creating, setCreating] =
-    useState(false);
+  const [creating, setCreating] = useState(false);
 
-  const [likedPosts, setLikedPosts] =
+  const [likedPosts, setLikedPosts] = useState({});
+  const [likeCounts, setLikeCounts] = useState({});
+
+  const [openComments, setOpenComments] = useState({});
+  const [comments, setComments] = useState({});
+  const [commentInputs, setCommentInputs] = useState({});
+  const [commentsLoading, setCommentsLoading] =
     useState({});
+
+  const [commentSubmitting, setCommentSubmitting] =
+    useState({});
+
+  const [followingUsers, setFollowingUsers] =
+    useState({});
+
+  const [followLoading, setFollowLoading] =
+    useState({});
+
+  const [adoptionLoading, setAdoptionLoading] =
+    useState({});
+
+  const [friends, setFriends] = useState([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [friendsError, setFriendsError] = useState("");
+
+  const [searchText, setSearchText] = useState("");
 
   const navigation = [
     {
@@ -99,117 +167,552 @@ function Community() {
       icon: HeartHandshake,
     },
     {
-      id: "lost",
-      label: "Lost & Found",
-      icon: Search,
-    },
-    {
-      id: "explore",
-      label: "Explore",
-      icon: Sparkles,
+      id: "friends",
+      label: "Friends",
+      icon: Users,
     },
   ];
 
-  async function loadPosts() {
+  // ==================================================
+  // LOAD POSTS
+  // ==================================================
+
+  const loadPosts = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
 
-      let url =
-        `${API_BASE_URL}/community/posts`;
+      let url = sharedPostId
+        ? `${API_BASE_URL}/community/posts/${sharedPostId}`
+        : `${API_BASE_URL}/community/posts`;
 
-      if (activeSection === "adoption") {
+      if (!sharedPostId && activeSection === "adoption") {
         url += "?type=adoption";
       }
 
-      if (activeSection === "lost") {
-        url += "?type=lost";
-      }
+      const data = await apiRequest(url);
 
-      const response = await fetch(url, {
-        headers: getAuthHeaders(),
+      const loadedPosts = sharedPostId
+        ? (data?.post ? [data.post] : [])
+        : (Array.isArray(data?.posts) ? data.posts : []);
+
+      setPosts(loadedPosts);
+
+      const initialLikes = {};
+      const initialCounts = {};
+
+      loadedPosts.forEach((post) => {
+        initialLikes[post._id] = false;
+
+        initialCounts[post._id] =
+          Number(post.likesCount || post.likeCount || 0);
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data?.message ||
-            "Unable to load community posts.",
-        );
-      }
-
-      setPosts(
-        Array.isArray(data.posts)
-          ? data.posts
-          : [],
-      );
+      setLikedPosts(initialLikes);
+      setLikeCounts(initialCounts);
     } catch (err) {
-      console.error(
-        "Community feed error:",
-        err,
-      );
+      console.error("Community feed error:", err);
 
       setError(
-        err.message ||
-          "Unable to load community.",
+        err.message || "Unable to load community posts.",
       );
     } finally {
       setLoading(false);
     }
-  }
+  }, [activeSection, sharedPostId]);
+
+  // ==================================================
+  // LOAD USER PETS
+  // ==================================================
+
+  const loadPets = useCallback(async () => {
+    try {
+      setPetsLoading(true);
+      setPetsError("");
+
+      const data = await apiRequest(
+        `${API_BASE_URL}/pets`,
+      );
+
+      const loadedPets = Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data?.pets)
+          ? data.pets
+          : [];
+
+      setPets(loadedPets);
+
+      if (loadedPets.length > 0) {
+        setSelectedPetId(
+          loadedPets[0]._id || loadedPets[0].id,
+        );
+      }
+    } catch (err) {
+      console.error("Load pets error:", err);
+
+      setPetsError(
+        err.message || "Unable to load your pets.",
+      );
+    } finally {
+      setPetsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    loadPosts();
-  }, [activeSection]);
+    if (activeSection === "friends") return undefined;
+    const timer = window.setTimeout(() => void loadPosts(), 0);
+    return () => window.clearTimeout(timer);
+  }, [activeSection, loadPosts]);
 
-  function toggleLike(postId) {
-    setLikedPosts((previous) => ({
+  const loadFriends = useCallback(async () => {
+    try {
+      setFriendsLoading(true);
+      setFriendsError("");
+      const data = await apiRequest(`${API_BASE_URL}/community/users/me/following`);
+      setFriends(Array.isArray(data?.following) ? data.following : []);
+    } catch (err) {
+      setFriendsError(err.message || "Unable to load friends.");
+    } finally {
+      setFriendsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadPets(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadPets]);
+
+  // ==================================================
+  // LIKE / UNLIKE
+  // ==================================================
+
+  async function toggleLike(postId) {
+    try {
+      const data = await apiRequest(
+        `${API_BASE_URL}/community/posts/${postId}/like`,
+        {
+          method: "POST",
+        },
+      );
+
+      setLikedPosts((previous) => ({
+        ...previous,
+        [postId]: Boolean(data?.liked),
+      }));
+
+      setLikeCounts((previous) => ({
+        ...previous,
+        [postId]: Number(data?.likeCount || 0),
+      }));
+    } catch (err) {
+      console.error("Toggle like error:", err);
+
+      alert(
+        err.message || "Unable to update like.",
+      );
+    }
+  }
+
+  // ==================================================
+  // COMMENTS
+  // ==================================================
+
+  async function loadComments(postId) {
+    try {
+      setCommentsLoading((previous) => ({
+        ...previous,
+        [postId]: true,
+      }));
+
+      const data = await apiRequest(
+        `${API_BASE_URL}/community/posts/${postId}/comments`,
+      );
+
+      setComments((previous) => ({
+        ...previous,
+        [postId]: Array.isArray(data?.comments)
+          ? data.comments
+          : [],
+      }));
+    } catch (err) {
+      console.error("Load comments error:", err);
+
+      alert(
+        err.message || "Unable to load comments.",
+      );
+    } finally {
+      setCommentsLoading((previous) => ({
+        ...previous,
+        [postId]: false,
+      }));
+    }
+  }
+
+  async function toggleComments(postId) {
+    const currentlyOpen = Boolean(
+      openComments[postId],
+    );
+
+    setOpenComments((previous) => ({
       ...previous,
-      [postId]: !previous[postId],
+      [postId]: !currentlyOpen,
     }));
+
+    if (!currentlyOpen && !comments[postId]) {
+      await loadComments(postId);
+    }
+  }
+
+  async function addComment(postId) {
+    const text = (
+      commentInputs[postId] || ""
+    ).trim();
+
+    if (!text) return;
+
+    try {
+      setCommentSubmitting((previous) => ({
+        ...previous,
+        [postId]: true,
+      }));
+
+      const data = await apiRequest(
+        `${API_BASE_URL}/community/posts/${postId}/comments`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text,
+          }),
+        },
+      );
+
+      const newComment = data?.comment;
+
+      setComments((previous) => ({
+        ...previous,
+        [postId]: [
+          ...(previous[postId] || []),
+          {
+            id: newComment?.id,
+            user: {
+              id: newComment?.userId,
+              name:
+                localStorage.getItem(
+                  "smartPawUserName",
+                ) || "You",
+            },
+            text: newComment?.text || text,
+            createdAt:
+              newComment?.createdAt ||
+              new Date().toISOString(),
+          },
+        ],
+      }));
+
+      setCommentInputs((previous) => ({
+        ...previous,
+        [postId]: "",
+      }));
+
+      setPosts((previous) =>
+        previous.map((post) =>
+          post._id === postId
+            ? {
+                ...post,
+                commentsCount:
+                  Number(
+                    post.commentsCount || 0,
+                  ) + 1,
+              }
+            : post,
+        ),
+      );
+    } catch (err) {
+      console.error("Add comment error:", err);
+
+      alert(
+        err.message || "Unable to add comment.",
+      );
+    } finally {
+      setCommentSubmitting((previous) => ({
+        ...previous,
+        [postId]: false,
+      }));
+    }
+  }
+
+  async function deleteComment(
+    postId,
+    commentId,
+  ) {
+    try {
+      await apiRequest(
+        `${API_BASE_URL}/community/posts/${postId}/comments/${commentId}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      setComments((previous) => ({
+        ...previous,
+        [postId]: (
+          previous[postId] || []
+        ).filter(
+          (comment) =>
+            comment.id !== commentId,
+          ),
+      }));
+
+      setPosts((previous) =>
+        previous.map((post) =>
+          post._id === postId
+            ? {
+                ...post,
+                commentsCount: Math.max(
+                  0,
+                  Number(
+                    post.commentsCount || 0,
+                  ) - 1,
+                ),
+              }
+            : post,
+        ),
+      );
+    } catch (err) {
+      console.error(
+        "Delete comment error:",
+        err,
+      );
+
+      alert(
+        err.message ||
+          "Unable to delete comment.",
+      );
+    }
+  }
+
+  // ==================================================
+  // FOLLOW / UNFOLLOW
+  // ==================================================
+
+  async function loadFollowStatus(userId) {
+    if (!userId) return;
+
+    try {
+      const data = await apiRequest(
+        `${API_BASE_URL}/community/users/${userId}/follow-status`,
+      );
+
+      setFollowingUsers((previous) => ({
+        ...previous,
+        [userId]: Boolean(data?.following),
+      }));
+      return Boolean(data?.following);
+    } catch (err) {
+      console.error(
+        "Follow status error:",
+        err,
+      );
+      return null;
+    }
+  }
+
+  async function toggleFollow(userId, followingOverride) {
+    if (!userId) return;
+
+    try {
+      setFollowLoading((previous) => ({
+        ...previous,
+        [userId]: true,
+      }));
+
+      const currentlyFollowing = typeof followingOverride === "boolean"
+        ? followingOverride
+        : Boolean(followingUsers[userId]);
+
+      const method = currentlyFollowing
+        ? "DELETE"
+        : "POST";
+
+      const data = await apiRequest(
+        `${API_BASE_URL}/community/users/${userId}/follow`,
+        {
+          method,
+        },
+      );
+
+      setFollowingUsers((previous) => ({
+        ...previous,
+        [userId]: Boolean(data?.following),
+      }));
+      if (activeSection === "friends") await loadFriends();
+    } catch (err) {
+      console.error(
+        "Toggle follow error:",
+        err,
+      );
+
+      alert(
+        err.message ||
+          "Unable to update follow status.",
+      );
+    } finally {
+      setFollowLoading((previous) => ({
+        ...previous,
+        [userId]: false,
+      }));
+    }
+  }
+
+  // ==================================================
+  // ADOPTION REQUEST
+  // ==================================================
+
+  async function requestAdoption(postId) {
+    try {
+      setAdoptionLoading((previous) => ({
+        ...previous,
+        [postId]: true,
+      }));
+
+      await apiRequest(
+        `${API_BASE_URL}/community/posts/${postId}/adoption-request`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message:
+              "I am interested in adopting this pet.",
+          }),
+        },
+      );
+
+      alert(
+        "Adoption request submitted successfully.",
+      );
+    } catch (err) {
+      console.error(
+        "Adoption request error:",
+        err,
+      );
+
+      alert(
+        err.message ||
+          "Unable to submit adoption request.",
+      );
+    } finally {
+      setAdoptionLoading((previous) => ({
+        ...previous,
+        [postId]: false,
+      }));
+    }
+  }
+
+  // ==================================================
+  // CREATE POST
+  // ==================================================
+
+  function handleImageSelection(event) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    setUploadError("");
+    if (selectedImages.length + files.length > MAX_COMMUNITY_IMAGES) {
+      setUploadError(`Choose up to ${MAX_COMMUNITY_IMAGES} photos per post.`);
+      return;
+    }
+    const invalid = files.find((file) =>
+      !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > MAX_IMAGE_SIZE,
+    );
+    if (invalid) {
+      setUploadError(invalid.size > MAX_IMAGE_SIZE
+        ? `${invalid.name} is larger than 5 MB.`
+        : `${invalid.name} is not a supported photo. Use JPG, PNG or WebP.`);
+      return;
+    }
+    setSelectedImages((previous) => [
+      ...previous,
+      ...files.map((file) => ({ file, preview: URL.createObjectURL(file) })),
+    ]);
+  }
+
+  function clearSelectedImages() {
+    selectedImages.forEach(({ preview }) => URL.revokeObjectURL(preview));
+    setSelectedImages([]);
+    setUploadError("");
+  }
+
+  async function sharePost(post) {
+    const url = `${window.location.origin}/community/posts/${post._id}`;
+    const shareData = {
+      title: `${post.petId?.name || "Pet"}'s community post`,
+      text: post.content || post.caption || "See this post on Smart Paw AI",
+      url,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        alert("Post link copied.");
+      } else {
+        window.prompt("Copy this post link:", url);
+      }
+    } catch (err) {
+      if (err.name !== "AbortError") alert("Unable to share this post.");
+    }
   }
 
   async function createPost() {
-    if (!caption.trim()) return;
+    const trimmedCaption = caption.trim();
+
+    if (!trimmedCaption) {
+      alert("Please write something first.");
+      return;
+    }
+
+    if (!selectedPetId) {
+      alert("Please select a pet.");
+      return;
+    }
 
     try {
       setCreating(true);
 
-      const token =
-        localStorage.getItem("smartPawToken");
+      const uploadedMedia = await Promise.all(selectedImages.map(async ({ file }) => {
+        const formData = new FormData();
+        formData.append("image", file);
+        const result = await apiRequest(`${API_BASE_URL}/uploads/community-image`, {
+          method: "POST",
+          body: formData,
+        });
+        if (!result?.imageUrl) throw new Error("Image upload did not return a photo URL.");
+        return result.imageUrl;
+      }));
 
-      const response = await fetch(
+      await apiRequest(
         `${API_BASE_URL}/community/posts`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(token
-              ? {
-                  Authorization: `Bearer ${token}`,
-                }
-              : {}),
           },
           body: JSON.stringify({
-            petId: "6aaee5e4a17458290f96f5b0",
-            type: "normal",
-            caption: caption.trim(),
-            media: [],
+            petId: selectedPetId,
+            type: postType,
+            caption: trimmedCaption,
+            media: uploadedMedia,
           }),
         },
       );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data?.message ||
-            "Failed to create post.",
-        );
-      }
-
       setCaption("");
+      clearSelectedImages();
+      setPostType("normal");
       setShowCreatePost(false);
 
       await loadPosts();
@@ -228,16 +731,120 @@ function Community() {
     }
   }
 
+  // ==================================================
+  // DELETE POST
+  // ==================================================
+
+  async function deletePost(postId) {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this post?",
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await apiRequest(
+        `${API_BASE_URL}/community/posts/${postId}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      setPosts((previous) =>
+        previous.filter(
+          (post) => post._id !== postId,
+        ),
+      );
+    } catch (err) {
+      console.error(
+        "Delete post error:",
+        err,
+      );
+
+      alert(
+        err.message ||
+          "Unable to delete post.",
+      );
+    }
+  }
+
+  function openEditPost(post) {
+    setEditingPost(post);
+    setEditCaption(post.content || post.caption || "");
+  }
+
+  async function savePostEdit() {
+    const content = editCaption.trim();
+    if (!editingPost || !content) return;
+
+    try {
+      setEditSubmitting(true);
+      const data = await apiRequest(`${API_BASE_URL}/community/posts/${editingPost._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      setPosts((previous) => previous.map((post) =>
+        post._id === editingPost._id ? data.post : post,
+      ));
+      setEditingPost(null);
+      setEditCaption("");
+    } catch (err) {
+      alert(err.message || "Unable to update post.");
+    } finally {
+      setEditSubmitting(false);
+    }
+  }
+
+  async function handleFollowClick(userId) {
+    let currentlyFollowing = followingUsers[userId];
+    if (typeof currentlyFollowing !== "boolean") {
+      currentlyFollowing = await loadFollowStatus(userId);
+    }
+    if (typeof currentlyFollowing === "boolean") {
+      await toggleFollow(userId, currentlyFollowing);
+    }
+  }
+
+  // ==================================================
+  // FILTER SEARCH
+  // ==================================================
+
+  const filteredPosts = posts.filter((post) => {
+    if (!searchText.trim()) return true;
+
+    const search = searchText
+      .toLowerCase()
+      .trim();
+
+    const text = [
+      post.content,
+      post.caption,
+      post.userId?.name,
+      post.petId?.name,
+      post.petId?.breed,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return text.includes(search);
+  });
+
+  // ==================================================
+  // RENDER
+  // ==================================================
+
   return (
     <main className="min-h-screen bg-[#f6f7f9] text-slate-900 dark:bg-[#080d12] dark:text-white">
 
-      {/* ================= HEADER ================= */}
+      {/* ==================================================
+          HEADER
+      ================================================== */}
 
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-xl dark:border-slate-800 dark:bg-[#0d131a]/95">
 
         <div className="mx-auto flex h-[70px] max-w-[1500px] items-center gap-5 px-4 sm:px-6">
-
-          {/* Logo */}
 
           <div className="flex min-w-fit items-center gap-3">
 
@@ -246,6 +853,7 @@ function Community() {
             </div>
 
             <div className="hidden sm:block">
+
               <p className="text-lg font-black tracking-tight">
                 Smart Paw
               </p>
@@ -253,11 +861,10 @@ function Community() {
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-500">
                 Pet Community
               </p>
+
             </div>
 
           </div>
-
-          {/* Search */}
 
           <div className="mx-auto hidden max-w-md flex-1 md:block">
 
@@ -270,6 +877,12 @@ function Community() {
 
               <input
                 type="text"
+                value={searchText}
+                onChange={(event) =>
+                  setSearchText(
+                    event.target.value,
+                  )
+                }
                 placeholder="Search pets, people or posts..."
                 className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
               />
@@ -277,8 +890,6 @@ function Community() {
             </div>
 
           </div>
-
-          {/* Right */}
 
           <div className="ml-auto flex items-center gap-2">
 
@@ -306,17 +917,19 @@ function Community() {
 
       </header>
 
-      {/* ================= MAIN ================= */}
+      {/* ==================================================
+          MAIN
+      ================================================== */}
 
       <div className="mx-auto grid max-w-[1500px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[220px_minmax(0,1fr)_280px]">
 
-        {/* ================= LEFT SIDEBAR ================= */}
+        {/* ==================================================
+            LEFT SIDEBAR
+        ================================================== */}
 
         <aside className="hidden lg:block">
 
           <div className="sticky top-[94px]">
-
-            {/* Profile */}
 
             <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#0d131a]">
 
@@ -342,8 +955,6 @@ function Community() {
 
             </div>
 
-            {/* Navigation */}
-
             <div className="space-y-1">
 
               {navigation.map((item) => {
@@ -356,9 +967,10 @@ function Community() {
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() =>
-                      setActiveSection(item.id)
-                    }
+                    onClick={() => {
+                      setActiveSection(item.id);
+                      if (item.id === "friends") loadFriends();
+                    }}
                     className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${
                       active
                         ? "bg-orange-500 text-white shadow-sm"
@@ -371,34 +983,6 @@ function Community() {
                   </button>
                 );
               })}
-
-            </div>
-
-            <div className="my-5 h-px bg-slate-200 dark:bg-slate-800" />
-
-            {/* Community links */}
-
-            <p className="px-4 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-              Your Community
-            </p>
-
-            <div className="mt-3 space-y-1">
-
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-500 hover:bg-white dark:text-slate-400 dark:hover:bg-[#111923]"
-              >
-                <Users size={18} />
-                Friends
-              </button>
-
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-500 hover:bg-white dark:text-slate-400 dark:hover:bg-[#111923]"
-              >
-                <Bookmark size={18} />
-                Saved Posts
-              </button>
 
             </div>
 
@@ -421,11 +1005,13 @@ function Community() {
 
         </aside>
 
-        {/* ================= CENTER FEED ================= */}
+        {/* ==================================================
+            CENTER FEED
+        ================================================== */}
 
         <section className="min-w-0">
 
-          {/* Mobile tabs */}
+          {/* MOBILE TABS */}
 
           <div className="mb-4 flex gap-2 overflow-x-auto lg:hidden">
 
@@ -436,9 +1022,10 @@ function Community() {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() =>
-                    setActiveSection(item.id)
-                  }
+                  onClick={() => {
+                    setActiveSection(item.id);
+                    if (item.id === "friends") loadFriends();
+                  }}
                   className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-xs font-bold ${
                     activeSection === item.id
                       ? "bg-orange-500 text-white"
@@ -446,6 +1033,7 @@ function Community() {
                   }`}
                 >
                   <Icon size={15} />
+
                   {item.label}
                 </button>
               );
@@ -453,7 +1041,7 @@ function Community() {
 
           </div>
 
-          {/* Feed title */}
+          {/* TITLE */}
 
           <div className="mb-4 flex items-end justify-between">
 
@@ -464,24 +1052,60 @@ function Community() {
               </p>
 
               <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
+
                 {activeSection === "feed" &&
                   "Your Pet Feed"}
 
                 {activeSection === "adoption" &&
                   "Pets Looking for a Home"}
 
-                {activeSection === "lost" &&
-                  "Lost & Found"}
+                {activeSection === "friends" &&
+                  "Friends You Follow"}
 
-                {activeSection === "explore" &&
-                  "Explore Smart Paw"}
               </h1>
 
             </div>
 
           </div>
 
-          {/* Create post box */}
+          {activeSection === "friends" && (
+            <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#0d131a]">
+              {friendsLoading ? (
+                <p className="py-6 text-center text-sm text-slate-400">Loading friends...</p>
+              ) : friendsError ? (
+                <div className="py-5 text-center">
+                  <p role="alert" className="text-sm text-red-500">{friendsError}</p>
+                  <button type="button" onClick={loadFriends} className="mt-3 rounded-lg bg-orange-500 px-4 py-2 text-xs font-bold text-white">Try again</button>
+                </div>
+              ) : friends.length === 0 ? (
+                <p className="py-6 text-center text-sm text-slate-400">You are not following anyone yet. Follow a pet parent from the feed to see them here.</p>
+              ) : (
+                <div className="space-y-2">
+                  {friends.map((friend) => {
+                    const friendId = friend._id || friend.id;
+                    return (
+                      <div key={friendId} className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 dark:bg-[#111923]">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-orange-100 text-orange-500 dark:bg-orange-500/10">
+                          <PawPrint size={18} />
+                        </div>
+                        <p className="min-w-0 flex-1 truncate text-sm font-bold">{friend.name || "Pet Parent"}</p>
+                        <button
+                          type="button"
+                          disabled={Boolean(followLoading[friendId])}
+                          onClick={() => toggleFollow(friendId, true)}
+                          className="rounded-full border border-slate-200 px-3 py-2 text-xs font-bold text-slate-500 hover:border-orange-300 hover:text-orange-500 disabled:opacity-50 dark:border-slate-700"
+                        >
+                          {followLoading[friendId] ? "Updating..." : "Unfollow"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* CREATE POST BOX */}
 
           {activeSection === "feed" && (
             <button
@@ -525,9 +1149,9 @@ function Community() {
             </button>
           )}
 
-          {/* Loading */}
+          {/* LOADING */}
 
-          {loading && (
+          {loading && activeSection !== "friends" && (
             <div className="space-y-4">
 
               {[1, 2].map((item) => (
@@ -540,9 +1164,9 @@ function Community() {
             </div>
           )}
 
-          {/* Error */}
+          {/* ERROR */}
 
-          {!loading && error && (
+          {!loading && error && activeSection !== "friends" && (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-900/30 dark:bg-red-950/20">
 
               <p className="text-sm font-semibold text-red-600 dark:text-red-400">
@@ -560,11 +1184,12 @@ function Community() {
             </div>
           )}
 
-          {/* Empty */}
+          {/* EMPTY */}
 
           {!loading &&
+            activeSection !== "friends" &&
             !error &&
-            posts.length === 0 && (
+            filteredPosts.length === 0 && (
               <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center dark:border-slate-800 dark:bg-[#0d131a]">
 
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-100 text-orange-500 dark:bg-orange-500/10">
@@ -572,259 +1197,269 @@ function Community() {
                 </div>
 
                 <h2 className="mt-5 text-lg font-black">
-                  No posts yet
+                  No posts found
                 </h2>
 
-                <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-400">
+                <p className="mx-auto mt-2 max-w-md text-sm text-slate-400">
                   Be the first pet parent to
                   share something with the
-                  community.
+                  Smart Paw community.
                 </p>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowCreatePost(true)
-                  }
-                  className="mt-5 rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white"
-                >
-                  Create First Post
-                </button>
 
               </div>
             )}
 
-          {/* Posts */}
+          {/* POSTS */}
 
           {!loading &&
+            activeSection !== "friends" &&
             !error &&
-            posts.length > 0 && (
-              <div className="space-y-5">
+            filteredPosts.map((post) => {
 
-                {posts.map((post) => {
-                  const isLiked =
-                    likedPosts[post._id];
+              const postId = post._id;
 
-                  return (
-                    <article
-                      key={post._id}
-                      className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#0d131a]"
-                    >
+              const userId =
+                post.userId?._id ||
+                post.userId?.id;
+              const isOwner = String(userId) === String(currentUser?._id || currentUser?.id);
 
-                      {/* Post header */}
+              const pet = post.petId;
 
-                      <div className="flex items-center justify-between p-5">
+              const isLiked =
+                Boolean(likedPosts[postId]);
 
-                        <div className="flex items-center gap-3">
+              const currentLikeCount =
+                likeCounts[postId] ??
+                Number(
+                  post.likesCount ||
+                    post.likeCount ||
+                    0,
+                );
 
-                          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-orange-100 text-orange-500 dark:bg-orange-500/10">
-                            <PawPrint size={20} />
-                          </div>
+              const currentComments =
+                comments[postId] || [];
 
-                          <div>
+              const isCommentsOpen =
+                Boolean(
+                  openComments[postId],
+                );
 
-                            <p className="text-sm font-bold">
-                              {post.userId?.name ||
-                                "Pet Parent"}
-                            </p>
+              const isAdoption =
+                post.type === "adoption" ||
+                post.postType === "adoption";
 
-                            <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-400">
+              return (
+                <article
+                  key={postId}
+                  className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#0d131a]"
+                >
 
-                              <span>
-                                with{" "}
-                                <span className="font-semibold text-slate-500 dark:text-slate-300">
-                                  {post.petId?.name ||
-                                    "their pet"}
-                                </span>
-                              </span>
+                  {/* POST HEADER */}
 
-                              <span>•</span>
+                  <div className="flex items-center justify-between p-4">
 
-                              <span>
-                                {formatDate(
-                                  post.createdAt,
-                                )}
-                              </span>
+                    <div className="flex min-w-0 items-center gap-3">
 
-                            </div>
-
-                          </div>
-
-                        </div>
-
-                        <button
-                          type="button"
-                          className="rounded-full p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        >
-                          <MoreHorizontal
-                            size={19}
-                          />
-                        </button>
-
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-orange-100 text-orange-500 dark:bg-orange-500/10" aria-label={`${post.userId?.name || "Pet Parent"} avatar`}>
+                        <PawPrint size={20} />
                       </div>
 
-                      {/* Pet identity */}
+                      <div className="min-w-0">
 
-                      {post.petId && (
-                        <div className="mx-5 mb-4 flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 dark:bg-[#111923]">
+                        <div className="flex items-center gap-2">
 
-                          <div className="flex items-center gap-3">
-
-                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-orange-500 dark:bg-[#0d131a]">
-                              <PawPrint
-                                size={17}
-                              />
-                            </div>
-
-                            <div>
-
-                              <p className="text-sm font-bold">
-                                {post.petId.name}
-                              </p>
-
-                              <p className="text-[11px] text-slate-400">
-                                {post.petId.breed ||
-                                  post.petId.species}
-
-                                {post.petId.age
-                                  ? ` • ${post.petId.age} years`
-                                  : ""}
-
-                                {post.petId.gender
-                                  ? ` • ${post.petId.gender}`
-                                  : ""}
-                              </p>
-
-                            </div>
-
-                          </div>
-
-                          <span className="rounded-full bg-orange-100 px-3 py-1 text-[10px] font-bold text-orange-600 dark:bg-orange-500/10 dark:text-orange-400">
-                            Pet Profile
-                          </span>
-
-                        </div>
-                      )}
-
-                      {/* Caption */}
-
-                      {post.caption && (
-                        <div className="px-5 pb-4">
-
-                          <p className="text-sm leading-6 text-slate-700 dark:text-slate-300">
-                            {post.caption}
+                          <p className="truncate text-sm font-black">
+                            {post.userId?.name ||
+                              "Pet Parent"}
                           </p>
 
-                        </div>
-                      )}
-
-                      {/* Media */}
-
-                      {Array.isArray(
-                        post.media,
-                      ) &&
-                        post.media.length > 0 && (
-                          <div className="grid grid-cols-1 overflow-hidden">
-                            {post.media.map(
-                              (media, index) => (
-                                <img
-                                  key={index}
-                                  src={
-                                    typeof media ===
-                                    "string"
-                                      ? media
-                                      : media.url
-                                  }
-                                  alt={
-                                    post.petId
-                                      ?.name ||
-                                    "Pet post"
-                                  }
-                                  className="max-h-[500px] w-full object-cover"
-                                />
-                              ),
-                            )}
-                          </div>
-                        )}
-
-                      {/* Adoption card */}
-
-                      {post.type ===
-                        "adoption" && (
-                        <div className="mx-5 mb-4 rounded-xl border border-orange-200 bg-orange-50 p-4 dark:border-orange-500/20 dark:bg-orange-500/10">
-
-                          <div className="flex items-center justify-between">
-
-                            <div>
-
-                              <p className="text-xs font-black uppercase tracking-wider text-orange-600 dark:text-orange-400">
-                                Adoption
-                              </p>
-
-                              <p className="mt-1 text-sm font-bold">
-                                Looking for a loving
-                                home
-                              </p>
-
-                            </div>
-
-                            <HeartHandshake
-                              size={24}
-                              className="text-orange-500"
-                            />
-
-                          </div>
-
-                          {post.adoption
-                            ?.location && (
-                            <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                              <MapPin
-                                size={14}
-                              />
-                              {
-                                post.adoption
-                                  .location
-                              }
-                            </div>
+                          {isAdoption && (
+                            <span className="rounded-full bg-green-100 px-2 py-0.5 text-[9px] font-black uppercase text-green-700 dark:bg-green-500/10 dark:text-green-400">
+                              Adoption
+                            </span>
                           )}
 
                         </div>
-                      )}
 
-                      {/* Engagement */}
+                        <div className="flex items-center gap-2 text-xs text-slate-400">
 
-                      <div className="flex items-center justify-between px-5 py-3 text-xs text-slate-400">
+                          <span>
+                            {formatDate(
+                              post.createdAt,
+                            )}
+                          </span>
 
-                        <span>
-                          {post.likesCount || 0} likes
-                        </span>
+                          {pet?.name && (
+                            <>
+                              <span>•</span>
+                              <span>
+                                {pet.name}
+                              </span>
+                            </>
+                          )}
 
-                        <span>
-                          {post.commentsCount ||
-                            0} comments
-                        </span>
+                        </div>
 
                       </div>
 
-                      {/* Actions */}
+                    </div>
 
-                      <div className="mx-5 flex border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-1">
+
+                      {userId && !isOwner && (
+                        <button
+                          type="button"
+                          disabled={
+                            followLoading[userId]
+                          }
+                          onClick={() => handleFollowClick(userId)}
+                          className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-orange-500 dark:hover:bg-slate-800"
+                          title={
+                            followingUsers[
+                              userId
+                            ]
+                              ? "Unfollow"
+                              : "Follow"
+                          }
+                        >
+                          {followingUsers[
+                            userId
+                          ] ? (
+                            <UserCheck
+                              size={18}
+                            />
+                          ) : (
+                            <UserPlus
+                              size={18}
+                            />
+                          )}
+                        </button>
+                      )}
+
+                      {isOwner && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openEditPost(post)}
+                            aria-label="Edit post"
+                            title="Edit post"
+                            className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-orange-500 dark:hover:bg-slate-800"
+                          ><Pencil size={17} /></button>
+                          <button
+                            type="button"
+                            onClick={() => deletePost(postId)}
+                            aria-label="Delete post"
+                            title="Delete post"
+                            className="rounded-full p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-slate-800"
+                          ><Trash2 size={17} /></button>
+                        </>
+                      )}
+
+                    </div>
+
+                  </div>
+
+                  {/* PET INFO */}
+
+                  {pet && (
+                    <div className="mx-4 mb-4 rounded-xl bg-slate-50 p-3 dark:bg-[#111923]">
+
+                      <div className="flex items-center gap-3">
+
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-orange-500 dark:bg-orange-500/10">
+                          <PawPrint
+                            size={18}
+                          />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+
+                          <p className="text-sm font-black">
+                            {pet.name}
+                          </p>
+
+                          <p className="text-xs text-slate-400">
+                            {[
+                              pet.species,
+                              pet.breed,
+                              pet.age
+                                ? `${pet.age} years`
+                                : null,
+                              pet.gender,
+                            ]
+                              .filter(Boolean)
+                              .join(" • ")}
+                          </p>
+
+                        </div>
+
+                        <ChevronRight
+                          size={18}
+                          className="text-slate-400"
+                        />
+
+                      </div>
+
+                    </div>
+                  )}
+
+                  {/* CONTENT */}
+
+                  <div className="px-4 pb-4">
+
+                    <p className="whitespace-pre-wrap text-sm leading-7 text-slate-700 dark:text-slate-200">
+                      {post.content ||
+                        post.caption}
+                    </p>
+
+                  </div>
+
+                  {Array.isArray(post.media) && post.media.length > 0 && (
+                    <div className={`mb-4 grid gap-1 px-4 ${post.media.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+                      {post.media.map((imageUrl, index) => (
+                        <img
+                          key={`${imageUrl}-${index}`}
+                          src={getMediaUrl(imageUrl)}
+                          alt={`Photo ${index + 1} in ${pet?.name || "pet"}'s post`}
+                          loading="lazy"
+                          className="h-auto max-h-[80vh] w-full rounded-xl object-contain"
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* LOCATION */}
+
+                  {post.location && (
+                    <div className="flex items-center gap-1 px-4 pb-3 text-xs text-slate-400">
+                      <MapPin size={13} />
+                      {post.location}
+                    </div>
+                  )}
+
+                  {/* ACTIONS */}
+
+                  <div className="border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+
+                    <div className="flex items-center justify-between">
+
+                      <div className="flex items-center gap-5">
 
                         <button
                           type="button"
                           onClick={() =>
                             toggleLike(
-                              post._id,
+                              postId,
                             )
                           }
-                          className={`flex flex-1 items-center justify-center gap-2 py-3 text-sm font-semibold transition ${
+                          className={`flex items-center gap-2 text-sm font-semibold transition ${
                             isLiked
                               ? "text-red-500"
                               : "text-slate-500 hover:text-red-500 dark:text-slate-400"
                           }`}
                         >
                           <Heart
-                            size={18}
+                            size={19}
                             fill={
                               isLiked
                                 ? "currentColor"
@@ -832,196 +1467,386 @@ function Community() {
                             }
                           />
 
-                          {isLiked
-                            ? "Liked"
-                            : "Like"}
+                          {currentLikeCount}
                         </button>
 
                         <button
                           type="button"
-                          className="flex flex-1 items-center justify-center gap-2 py-3 text-sm font-semibold text-slate-500 hover:text-orange-500 dark:text-slate-400"
+                          onClick={() =>
+                            toggleComments(
+                              postId,
+                            )
+                          }
+                          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-orange-500 dark:text-slate-400"
                         >
                           <MessageCircle
-                            size={18}
+                            size={19}
                           />
-                          Comment
+
+                          {Number(
+                            post.commentsCount ||
+                              post.commentCount ||
+                              0,
+                          )}
                         </button>
 
                         <button
                           type="button"
-                          className="flex flex-1 items-center justify-center gap-2 py-3 text-sm font-semibold text-slate-500 hover:text-orange-500 dark:text-slate-400"
+                          onClick={() => sharePost(post)}
+                          className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-orange-500 dark:text-slate-400"
                         >
-                          <Share2 size={18} />
-                          Share
+                          <Share2
+                            size={18}
+                          />
+
+                          <span className="hidden sm:inline">
+                            Share
+                          </span>
                         </button>
 
                       </div>
 
-                    </article>
-                  );
-                })}
+                      {isAdoption && (
+                        <button
+                          type="button"
+                          disabled={
+                            adoptionLoading[
+                              postId
+                            ]
+                          }
+                          onClick={() =>
+                            requestAdoption(
+                              postId,
+                            )
+                          }
+                          className="rounded-full bg-orange-500 px-4 py-2 text-xs font-black text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {adoptionLoading[
+                            postId
+                          ]
+                            ? "Sending..."
+                            : "Request Adoption"}
+                        </button>
+                      )}
 
-              </div>
-            )}
+                    </div>
+
+                  </div>
+
+                  {/* COMMENTS */}
+
+                  {isCommentsOpen && (
+                    <div className="border-t border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-[#0a1016]">
+
+                      <div className="mb-4 flex items-center justify-between">
+
+                        <p className="text-sm font-black">
+                          Comments
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenComments(
+                              (previous) => ({
+                                ...previous,
+                                [postId]: false,
+                              }),
+                            )
+                          }
+                          className="rounded-full p-1 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800"
+                        >
+                          <X size={16} />
+                        </button>
+
+                      </div>
+
+                      {commentsLoading[
+                        postId
+                      ] ? (
+                        <div className="py-5 text-center text-xs text-slate-400">
+                          Loading comments...
+                        </div>
+                      ) : currentComments.length ===
+                        0 ? (
+                        <div className="py-5 text-center text-xs text-slate-400">
+                          No comments yet.
+                          Be the first to
+                          comment.
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+
+                          {currentComments.map(
+                            (comment) => (
+                              <div
+                                key={
+                                  comment.id
+                                }
+                                className="flex gap-3"
+                              >
+
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-500 dark:bg-orange-500/10">
+                                  <PawPrint
+                                    size={14}
+                                  />
+                                </div>
+
+                                <div className="min-w-0 flex-1 rounded-xl bg-white p-3 dark:bg-[#111923]">
+
+                                  <div className="flex items-start justify-between gap-2">
+
+                                    <div>
+
+                                      <p className="text-xs font-black">
+                                        {comment
+                                          .user
+                                          ?.name ||
+                                          "Pet Parent"}
+                                      </p>
+
+                                      <p className="mt-0.5 text-[10px] text-slate-400">
+                                        {formatDate(
+                                          comment.createdAt,
+                                        )}
+                                      </p>
+
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        deleteComment(
+                                          postId,
+                                          comment.id,
+                                        )
+                                      }
+                                      className="text-slate-400 hover:text-red-500"
+                                      title="Delete comment"
+                                    >
+                                      <Trash2
+                                        size={
+                                          14
+                                        }
+                                      />
+                                    </button>
+
+                                  </div>
+
+                                  <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">
+                                    {
+                                      comment.text
+                                    }
+                                  </p>
+
+                                </div>
+
+                              </div>
+                            ),
+                          )}
+
+                        </div>
+                      )}
+
+                      {/* ADD COMMENT */}
+
+                      <div className="mt-4 flex items-center gap-2">
+
+                        <input
+                          type="text"
+                          value={
+                            commentInputs[
+                              postId
+                            ] || ""
+                          }
+                          onChange={(event) =>
+                            setCommentInputs(
+                              (previous) => ({
+                                ...previous,
+                                [postId]:
+                                  event.target
+                                    .value,
+                              }),
+                            )
+                          }
+                          onKeyDown={(event) => {
+                            if (
+                              event.key ===
+                              "Enter"
+                            ) {
+                              addComment(
+                                postId,
+                              );
+                            }
+                          }}
+                          placeholder="Write a comment..."
+                          className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-[#111923]"
+                        />
+
+                        <button
+                          type="button"
+                          disabled={
+                            commentSubmitting[
+                              postId
+                            ]
+                          }
+                          onClick={() =>
+                            addComment(
+                              postId,
+                            )
+                          }
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-600 disabled:opacity-50"
+                        >
+                          <Send size={16} />
+                        </button>
+
+                      </div>
+
+                    </div>
+                  )}
+
+                </article>
+              );
+            })}
 
         </section>
 
-        {/* ================= RIGHT SIDEBAR ================= */}
+        {/* ==================================================
+            RIGHT SIDEBAR
+        ================================================== */}
 
-        <aside className="hidden xl:block">
+        <aside className="hidden lg:block">
 
           <div className="sticky top-[94px] space-y-5">
 
-            {/* Stories */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-[#0d131a]">
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#0d131a]">
+              <div className="flex items-center justify-between">
 
-              <div className="mb-4 flex items-center justify-between">
+                <div>
 
-                <h2 className="text-sm font-black">
-                  Pet Stories
-                </h2>
+                  <p className="text-xs font-black uppercase tracking-[0.15em] text-orange-500">
+                    Your Pets
+                  </p>
 
-                <button
-                  type="button"
-                  className="text-xs font-bold text-orange-500"
-                >
-                  See all
-                </button>
+                  <h2 className="mt-1 text-lg font-black">
+                    Pet Profiles
+                  </h2>
 
-              </div>
+                </div>
 
-              <div className="flex gap-3 overflow-hidden">
-
-                {[
-                  "🐶",
-                  "🐱",
-                  "🐰",
-                  "🐹",
-                ].map((emoji, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    className="flex min-w-[52px] flex-col items-center gap-2"
-                  >
-
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-orange-400 bg-orange-50 text-xl dark:bg-orange-500/10">
-                      {emoji}
-                    </div>
-
-                    <span className="max-w-[55px] truncate text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                      {[
-                        "Leo",
-                        "Milo",
-                        "Luna",
-                        "Rocky",
-                      ][index]}
-                    </span>
-
-                  </button>
-                ))}
+                <PawPrint
+                  size={20}
+                  className="text-orange-500"
+                />
 
               </div>
+
+              {petsLoading ? (
+                <div className="mt-4 space-y-3">
+
+                  {[1, 2].map((item) => (
+                    <div
+                      key={item}
+                      className="h-12 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"
+                    />
+                  ))}
+
+                </div>
+              ) : pets.length === 0 ? (
+                <div className="mt-4 rounded-xl bg-slate-50 p-4 text-center dark:bg-[#111923]">
+
+                  <p className="text-xs text-slate-400">
+                    No pets found.
+                  </p>
+
+                </div>
+              ) : (
+                <div className="mt-4 space-y-2">
+
+                  {pets.slice(0, 4).map(
+                    (pet) => {
+                      const petId =
+                        pet._id ||
+                        pet.id;
+
+                      return (
+                        <button
+                          key={petId}
+                          type="button"
+                          onClick={() =>
+                            setSelectedPetId(
+                              petId,
+                            )
+                          }
+                          className={`flex w-full items-center gap-3 rounded-xl p-3 text-left transition ${
+                            selectedPetId ===
+                            petId
+                              ? "bg-orange-50 dark:bg-orange-500/10"
+                              : "hover:bg-slate-50 dark:hover:bg-[#111923]"
+                          }`}
+                        >
+
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-100 text-orange-500 dark:bg-orange-500/10">
+                            <PawPrint
+                              size={16}
+                            />
+                          </div>
+
+                          <div className="min-w-0">
+
+                            <p className="truncate text-xs font-black">
+                              {pet.name}
+                            </p>
+
+                            <p className="truncate text-[10px] text-slate-400">
+                              {pet.breed ||
+                                pet.species ||
+                                "Pet"}
+                            </p>
+
+                          </div>
+
+                        </button>
+                      );
+                    },
+                  )}
+
+                </div>
+              )}
+
+              {petsError && (
+                <p className="mt-3 text-xs text-red-500">
+                  {petsError}
+                </p>
+              )}
 
             </div>
 
-            {/* Suggested Pet Parents */}
+            <div className="rounded-2xl bg-orange-500 p-5 text-white">
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#0d131a]">
+              <Sparkles size={22} />
 
-              <div className="mb-4 flex items-center justify-between">
+              <h3 className="mt-4 text-base font-black">
+                Make the community better
+              </h3>
 
-                <h2 className="text-sm font-black">
-                  Pet Parents
-                </h2>
-
-                <button
-                  type="button"
-                  className="text-xs font-bold text-orange-500"
-                >
-                  See all
-                </button>
-
-              </div>
-
-              <div className="space-y-4">
-
-                {[
-                  {
-                    name: "Pet Lover",
-                    pet: "Golden Retriever",
-                    emoji: "🐕",
-                  },
-                  {
-                    name: "Cat Mom",
-                    pet: "Persian Cat",
-                    emoji: "🐈",
-                  },
-                  {
-                    name: "Happy Paws",
-                    pet: "Beagle",
-                    emoji: "🐶",
-                  },
-                ].map((person) => (
-                  <div
-                    key={person.name}
-                    className="flex items-center gap-3"
-                  >
-
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-50 text-lg dark:bg-orange-500/10">
-                      {person.emoji}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-
-                      <p className="truncate text-xs font-bold">
-                        {person.name}
-                      </p>
-
-                      <p className="truncate text-[10px] text-slate-400">
-                        {person.pet}
-                      </p>
-
-                    </div>
-
-                    <button
-                      type="button"
-                      className="rounded-full border border-orange-200 px-3 py-1 text-[10px] font-bold text-orange-500 hover:bg-orange-50 dark:border-orange-500/30 dark:hover:bg-orange-500/10"
-                    >
-                      Follow
-                    </button>
-
-                  </div>
-                ))}
-
-              </div>
-
-            </div>
-
-            {/* Adoption highlight */}
-
-            <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 p-5 text-white">
-
-              <HeartHandshake size={26} />
-
-              <p className="mt-4 text-lg font-black">
-                Give a pet a home.
-              </p>
-
-              <p className="mt-1 text-xs leading-5 text-orange-100">
-                Discover pets waiting for
-                their forever family.
+              <p className="mt-2 text-xs leading-5 text-orange-100">
+                Share useful pet moments,
+                adoption opportunities and
+                experiences with other pet
+                parents.
               </p>
 
               <button
                 type="button"
                 onClick={() =>
-                  setActiveSection("adoption")
+                  setShowCreatePost(true)
                 }
-                className="mt-4 flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-orange-600"
+                className="mt-4 flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-black text-orange-500"
               >
-                Explore Adoption
-                <ChevronRight size={14} />
+                <Plus size={15} />
+                Create a Post
               </button>
 
             </div>
@@ -1032,127 +1857,283 @@ function Community() {
 
       </div>
 
-      {/* ================= CREATE POST MODAL ================= */}
+      {editingPost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-[#0d131a]">
+            <div className="flex items-center justify-between border-b border-slate-100 p-5 dark:border-slate-800">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.15em] text-orange-500">Community</p>
+                <h2 className="mt-1 text-xl font-black">Edit your post</h2>
+              </div>
+              <button type="button" onClick={() => setEditingPost(null)} aria-label="Close edit dialog" className="rounded-full p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><X size={19} /></button>
+            </div>
+            <div className="space-y-4 p-5">
+              <label htmlFor="edit-community-caption" className="block text-xs font-black uppercase tracking-wider text-slate-500">Caption</label>
+              <textarea
+                id="edit-community-caption"
+                value={editCaption}
+                onChange={(event) => setEditCaption(event.target.value)}
+                rows={5}
+                maxLength={2000}
+                className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-[#111923]"
+              />
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setEditingPost(null)} className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-500 dark:border-slate-700">Cancel</button>
+                <button type="button" disabled={editSubmitting || !editCaption.trim()} onClick={savePostEdit} className="flex-1 rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white hover:bg-orange-600 disabled:opacity-50">{editSubmitting ? "Saving..." : "Save changes"}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================
+          CREATE POST MODAL
+      ================================================== */}
 
       {showCreatePost && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
 
-          <div className="w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-[#0d131a]">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-[#0d131a]">
 
-            {/* Modal header */}
+            {/* MODAL HEADER */}
 
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5 dark:border-slate-800">
+            <div className="flex items-center justify-between border-b border-slate-100 p-5 dark:border-slate-800">
 
               <div>
 
-                <h2 className="text-xl font-black">
+                <p className="text-xs font-black uppercase tracking-[0.15em] text-orange-500">
+                  Community
+                </p>
+
+                <h2 className="mt-1 text-xl font-black">
                   Create a Post
                 </h2>
 
-                <p className="mt-1 text-xs text-slate-400">
-                  Share a moment with the
-                  Smart Paw community.
-                </p>
-
               </div>
 
               <button
                 type="button"
-                onClick={() =>
-                  setShowCreatePost(false)
-                }
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                onClick={() => {
+                  setShowCreatePost(false);
+                  clearSelectedImages();
+                }}
+                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
-                ×
+                <X size={19} />
               </button>
 
             </div>
 
-            {/* Modal body */}
+            <div className="space-y-5 p-5">
 
-            <div className="p-6">
+              {/* PET */}
 
-              <div className="mb-5 flex items-center gap-3">
+              <div>
 
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-orange-100 text-orange-500 dark:bg-orange-500/10">
-                  <PawPrint size={20} />
-                </div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
+                  Pet
+                </label>
 
-                <div>
+                {petsLoading ? (
+                  <div className="rounded-xl bg-slate-100 p-3 text-xs text-slate-400 dark:bg-slate-800">
+                    Loading your pets...
+                  </div>
+                ) : pets.length === 0 ? (
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-500">
+                    You need to add a pet before
+                    creating a community post.
+                  </div>
+                ) : (
+                  <select
+                    value={selectedPetId}
+                    onChange={(event) =>
+                      setSelectedPetId(
+                        event.target.value,
+                      )
+                    }
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-[#111923]"
+                  >
+                    <option value="">
+                      Select your pet
+                    </option>
 
-                  <p className="text-sm font-bold">
-                    Pet Parent
-                  </p>
+                    {pets.map((pet) => (
+                      <option
+                        key={
+                          pet._id || pet.id
+                        }
+                        value={
+                          pet._id || pet.id
+                        }
+                      >
+                        {pet.name}
+                        {pet.breed
+                          ? ` • ${pet.breed}`
+                          : ""}
+                      </option>
+                    ))}
 
-                  <p className="text-xs text-slate-400">
-                    Posting with Leo
-                  </p>
+                  </select>
+                )}
+
+              </div>
+
+              {/* POST TYPE */}
+
+              <div>
+
+                <label className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
+                  Post Type
+                </label>
+
+                <div className="grid grid-cols-2 gap-2">
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPostType("normal")
+                    }
+                    className={`rounded-xl border p-3 text-left transition ${
+                      postType === "normal"
+                        ? "border-orange-500 bg-orange-50 dark:bg-orange-500/10"
+                        : "border-slate-200 dark:border-slate-700"
+                    }`}
+                  >
+
+                    <p className="text-xs font-black">
+                      Normal Post
+                    </p>
+
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      Share a pet moment
+                    </p>
+
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPostType("adoption")
+                    }
+                    className={`rounded-xl border p-3 text-left transition ${
+                      postType === "adoption"
+                        ? "border-orange-500 bg-orange-50 dark:bg-orange-500/10"
+                        : "border-slate-200 dark:border-slate-700"
+                    }`}
+                  >
+
+                    <p className="text-xs font-black">
+                      Adoption
+                    </p>
+
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      Find a home for your pet
+                    </p>
+
+                  </button>
 
                 </div>
 
               </div>
 
-              <textarea
-                value={caption}
-                onChange={(event) =>
-                  setCaption(
-                    event.target.value,
-                  )
-                }
-                placeholder="What is your pet up to today?"
-                rows={5}
-                className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10 dark:border-slate-800 dark:bg-[#111923]"
-              />
+              {/* CAPTION */}
 
-              <div className="mt-4 flex items-center gap-3">
+              <div>
 
-                <button
-                  type="button"
-                  className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300"
-                >
-                  <ImageIcon size={16} />
-                  Add Photo
-                </button>
+                <label className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
+                  Caption
+                </label>
 
-                <button
-                  type="button"
-                  className="flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300"
-                >
-                  <Smile size={16} />
-                  Feeling
-                </button>
+                <textarea
+                  value={caption}
+                  onChange={(event) =>
+                    setCaption(
+                      event.target.value,
+                    )
+                  }
+                  rows={5}
+                  maxLength={1000}
+                  placeholder="Share something about your pet..."
+                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-[#111923]"
+                />
+
+                <div className="mt-1 text-right text-[10px] text-slate-400">
+                  {caption.length}/1000
+                </div>
 
               </div>
 
-            </div>
+              {/* PHOTOS */}
 
-            {/* Modal footer */}
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
+                  Photos (up to {MAX_COMMUNITY_IMAGES})
+                </label>
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 px-4 py-3 text-sm font-bold text-slate-500 transition hover:border-orange-400 hover:text-orange-500 dark:border-slate-700">
+                  <ImageIcon size={17} /> Add photos
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    onChange={handleImageSelection}
+                    disabled={creating || selectedImages.length >= MAX_COMMUNITY_IMAGES}
+                    className="sr-only"
+                  />
+                </label>
+                {uploadError && <p role="alert" className="mt-2 text-xs text-red-500">{uploadError}</p>}
+                {selectedImages.length > 0 && (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {selectedImages.map(({ file, preview }, index) => (
+                      <div key={`${file.name}-${file.lastModified}-${index}`} className="relative">
+                        <img src={preview} alt={`Selected photo ${index + 1}`} className="h-24 w-full rounded-lg bg-slate-100 object-contain dark:bg-slate-800" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            URL.revokeObjectURL(preview);
+                            setSelectedImages((previous) => previous.filter((image) => image.preview !== preview));
+                          }}
+                          aria-label={`Remove ${file.name}`}
+                          className="absolute right-1 top-1 rounded-full bg-slate-900/75 p-1 text-white"
+                        ><X size={14} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4 dark:border-slate-800">
+              {/* ACTIONS */}
 
-              <button
-                type="button"
-                onClick={() =>
-                  setShowCreatePost(false)
-                }
-                className="rounded-xl px-5 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                Cancel
-              </button>
+              <div className="flex gap-3">
 
-              <button
-                type="button"
-                disabled={
-                  creating ||
-                  !caption.trim()
-                }
-                onClick={createPost}
-                className="flex items-center gap-2 rounded-xl bg-orange-500 px-6 py-2.5 text-sm font-bold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {creating
-                  ? "Posting..."
-                  : "Publish Post"}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreatePost(false);
+                    setCaption("");
+                    clearSelectedImages();
+                  }}
+                  className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-500 dark:border-slate-700 dark:text-slate-300"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  disabled={
+                    creating ||
+                    !caption.trim() ||
+                    !selectedPetId ||
+                    pets.length === 0
+                  }
+                  onClick={createPost}
+                  className="flex-1 rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {creating
+                    ? "Publishing..."
+                    : "Publish Post"}
+                </button>
+
+              </div>
 
             </div>
 

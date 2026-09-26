@@ -20,11 +20,23 @@ import { useAppContext } from "../hooks/useAppContext";
 
 const API_BASE_URL = "http://localhost:5000";
 const HEALTH_CHECK_HISTORY_KEY = "smartPawHealthCheckHistory";
+const LATEST_HEALTH_CHECK_KEY = "smartPawLatestHealthCheck";
 
-function loadHealthCheckHistory() {
+function getUserStorageKey(baseKey, userId) {
+  return userId ? `${baseKey}:${userId}` : null;
+}
+
+function loadHealthCheckHistory(userId) {
+  const storageKey = getUserStorageKey(
+    HEALTH_CHECK_HISTORY_KEY,
+    userId,
+  );
+
+  if (!storageKey) return [];
+
   try {
     const stored = JSON.parse(
-      localStorage.getItem(HEALTH_CHECK_HISTORY_KEY) || "[]",
+      localStorage.getItem(storageKey) || "[]",
     );
 
     return Array.isArray(stored) ? stored : [];
@@ -33,17 +45,18 @@ function loadHealthCheckHistory() {
   }
 }
 
-function getInitialHealthSession() {
-  const history = loadHealthCheckHistory();
+function getInitialHealthSession(userId) {
+  const history = loadHealthCheckHistory(userId);
 
   return history[0] || null;
 }
 
 export default function AIHealthCheck() {
-  const { pets, currentPet } = useAppContext();
+  const { pets, currentPet, currentUser } = useAppContext();
+  const currentUserId = currentUser?._id || currentUser?.id || "";
   const initialSession = useMemo(
-    () => getInitialHealthSession(),
-    [],
+    () => getInitialHealthSession(currentUserId),
+    [currentUserId],
   );
 
   const [selectedPetId, setSelectedPetId] = useState(
@@ -61,7 +74,7 @@ export default function AIHealthCheck() {
     initialSession?.assessment || null,
   );
   const [healthHistory, setHealthHistory] = useState(
-    loadHealthCheckHistory,
+    () => loadHealthCheckHistory(currentUserId),
   );
   const [activeSessionId, setActiveSessionId] = useState(
     initialSession?.id || null,
@@ -292,7 +305,7 @@ export default function AIHealthCheck() {
     };
 
     localStorage.setItem(
-      "smartPawLatestHealthCheck",
+      getUserStorageKey(LATEST_HEALTH_CHECK_KEY, currentUserId),
       JSON.stringify(
         healthCheckData,
       ),
@@ -333,13 +346,13 @@ export default function AIHealthCheck() {
 
     const nextHistory = [
       session,
-      ...loadHealthCheckHistory().filter(
+      ...loadHealthCheckHistory(currentUserId).filter(
         (item) => item.id !== id,
       ),
     ].slice(0, 20);
 
     localStorage.setItem(
-      HEALTH_CHECK_HISTORY_KEY,
+      getUserStorageKey(HEALTH_CHECK_HISTORY_KEY, currentUserId),
       JSON.stringify(nextHistory),
     );
     setHealthHistory(nextHistory);
@@ -378,7 +391,7 @@ export default function AIHealthCheck() {
         return;
       }
 
-      const session = loadHealthCheckHistory().find(
+      const session = loadHealthCheckHistory(currentUserId).find(
         (item) => item.id === sessionId,
       );
 
@@ -400,15 +413,15 @@ export default function AIHealthCheck() {
         handleHealthCheckReady,
       );
     };
-  }, [activeSessionId]);
+  }, [activeSessionId, currentUserId]);
 
   const deleteHealthSession = (sessionId) => {
-    const nextHistory = loadHealthCheckHistory().filter(
+    const nextHistory = loadHealthCheckHistory(currentUserId).filter(
       (session) => session.id !== sessionId,
     );
 
     localStorage.setItem(
-      HEALTH_CHECK_HISTORY_KEY,
+      getUserStorageKey(HEALTH_CHECK_HISTORY_KEY, currentUserId),
       JSON.stringify(nextHistory),
     );
     setHealthHistory(nextHistory);

@@ -22,10 +22,15 @@ import Register from "./pages/Register"
 import Notfound from "./pages/Notfound"
 
 function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useAppContext()
+  const location = useLocation()
+  const { isAuthenticated, isAuthChecking } = useAppContext()
+
+  if (isAuthChecking) {
+    return null
+  }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/login" state={{ from: location }} replace />
   }
 
   return children
@@ -103,6 +108,14 @@ function AppContent() {
         />
         <Route
           path="/medical-records"
+          element={
+            <ProtectedRoute>
+              <Community />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/community/posts/:postId"
           element={
             <ProtectedRoute>
               <Community />
