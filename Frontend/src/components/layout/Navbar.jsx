@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
-import { Bell, Menu, X, Sun, Moon } from "lucide-react";
+import { Bell, Menu, X, Sun, Moon, Stethoscope } from "lucide-react";
 import { useAppContext } from "../../hooks/useAppContext";
+import { getNotifications, markNotificationRead } from "../../services/api";
 
 const navItems = [
   { label: "Home", path: "/" },
   { label: "Dashboard", path: "/dashboard" },
   { label: "Health Check", path: "/health-check" },
+  { label: "Doctor Consultation", path: "/consultations", icon: Stethoscope },
   { label: "Planner", path: "/planner" },
   { label: "Pet Profile", path: "/pet-profile" },
   { label: "Recommendations", path: "/recommendation" },
@@ -22,6 +24,8 @@ function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [healthNotification, setHealthNotification] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const {
     isAuthenticated,
@@ -30,6 +34,17 @@ function Navbar() {
     theme,
     toggleTheme,
   } = useAppContext();
+  const visibleNavItems = currentUser?.role === "doctor"
+    ? [{ label: "Doctor Dashboard", path: "/doctor/dashboard", icon: Stethoscope }, { label: "Planner", path: "/planner" }]
+    : navItems;
+
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    let active = true;
+    const load = async () => { try { const result = await getNotifications(); if (active) setNotifications(result.notifications || []); } catch { /* Navigation remains usable if notifications are offline. */ } };
+    load(); const timer = window.setInterval(load, 20000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [isAuthenticated]);
 
   const closeMenu = () => {
     setIsMenuOpen(false);
@@ -103,6 +118,14 @@ function Navbar() {
     setHealthNotification(null);
     navigate("/health-check");
   };
+  const openNotification = async (item) => {
+    if (!item.readAt) {
+      await markNotificationRead(item._id).catch(() => {});
+      setNotifications((current) => current.map((value) => value._id === item._id ? { ...value, readAt: new Date().toISOString() } : value));
+    }
+    setShowNotifications(false);
+    navigate(currentUser?.role === "doctor" ? "/doctor/dashboard" : "/consultations");
+  };
 
   const desktopLinkClass = ({ isActive }) =>
     `relative whitespace-nowrap px-2 py-2 text-[13px] font-medium transition-colors ${
@@ -135,7 +158,7 @@ function Navbar() {
 
         {/* Desktop Navigation */}
         <div className="hidden min-w-0 items-center gap-1 lg:flex">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
@@ -144,7 +167,7 @@ function Navbar() {
             >
               {({ isActive }) => (
                 <>
-                  {item.label}
+                  <span className="inline-flex items-center gap-1.5">{item.icon && <item.icon size={15} />}{item.label}</span>
 
                   {isActive && (
                     <span className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-orange-500" />
@@ -155,6 +178,7 @@ function Navbar() {
           ))}
 
           {/* Theme Toggle */}
+          {isAuthenticated && <button type="button" onClick={() => setShowNotifications((open) => !open)} aria-label="Notifications" className="relative ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-orange-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"><Bell size={16} />{notifications.some((item) => !item.readAt) && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-red-500 dark:border-gray-800" />}</button>}
           <button
             type="button"
             onClick={handleThemeToggle}
@@ -193,6 +217,7 @@ function Navbar() {
         </div>
 
         {/* Mobile Menu Button */}
+        {isAuthenticated && <button type="button" onClick={() => setShowNotifications((open) => !open)} aria-label="Notifications" className="relative ml-auto mr-1 flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300 lg:hidden"><Bell size={17} />{notifications.some((item) => !item.readAt) && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-500" />}</button>}
         <button
           type="button"
           onClick={() => setIsMenuOpen((open) => !open)}
@@ -207,6 +232,8 @@ function Navbar() {
           )}
         </button>
       </div>
+
+      {showNotifications && <div className="absolute right-3 top-16 z-[60] w-[calc(100vw-1.5rem)] max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-[#111820]"><div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-700"><p className="text-sm font-black">Notifications</p><button onClick={() => setShowNotifications(false)} className="text-xs font-bold text-orange-600">Close</button></div><div className="max-h-80 overflow-y-auto">{notifications.length ? notifications.map((item) => <button key={item._id} onClick={() => openNotification(item)} className={`block w-full border-b border-slate-50 px-4 py-3 text-left dark:border-slate-800 ${item.readAt ? "opacity-60" : "bg-orange-50/70 dark:bg-orange-500/5"}`}><p className="text-xs font-bold text-slate-800 dark:text-slate-100">{item.message}</p><p className="mt-1 text-[10px] text-slate-400">{new Date(item.createdAt).toLocaleString()}</p></button>) : <p className="p-5 text-center text-sm text-slate-500">You’re all caught up.</p>}</div></div>}
 
       {healthNotification && (
         <div className="fixed right-4 top-20 z-[70] w-[calc(100vw-2rem)] max-w-[360px] sm:right-6">
@@ -245,7 +272,7 @@ function Navbar() {
 
           <div className="absolute right-3 top-[4.25rem] z-50 w-[calc(100%-1.5rem)] max-w-sm overflow-hidden rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl dark:border-gray-700 dark:bg-[#111820] lg:hidden">
             <div className="max-h-[calc(100vh-6rem)] space-y-1 overflow-y-auto">
-              {navItems.map((item) => (
+              {visibleNavItems.map((item) => (
                 <NavLink
                   key={item.path}
                   to={item.path}
@@ -253,7 +280,7 @@ function Navbar() {
                   onClick={closeMenu}
                   className={mobileLinkClass}
                 >
-                  {item.label}
+                  <span className="inline-flex items-center gap-2">{item.icon && <item.icon size={17} />}{item.label}</span>
                 </NavLink>
               ))}
 

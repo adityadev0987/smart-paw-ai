@@ -24,6 +24,7 @@ import {
   deletePet as apiDeletePet,
   getCommunityMediaUrl,
   getCommunityPostsForPet,
+  getConsultations,
 } from "../services/api";
 
 const emptyPet = {
@@ -1114,6 +1115,13 @@ function PetIdCard({
                     className="transition group-hover:translate-x-1"
                   />
                 </Link>
+                <Link
+                  to={`/consultations?petId=${pet._id || pet.id}`}
+                  className="group mt-1 flex min-h-11 w-full items-center justify-between rounded-xl px-2 text-sm font-black text-orange-600 transition hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-500/10"
+                >
+                  <span className="inline-flex items-center gap-2"><Stethoscope size={17} />Consult Veterinarian</span>
+                  <ArrowRight size={17} className="transition group-hover:translate-x-1" />
+                </Link>
               </div>
             </section>
 
@@ -1247,6 +1255,14 @@ function PetIdCard({
                       Community
                       <ArrowRight size={17} className="transition group-hover:translate-x-1" />
                     </Link>
+                    <Link
+                      to={`/consultations?petId=${pet._id || pet.id}`}
+                      className="group inline-flex min-h-10 items-center justify-center gap-2 text-sm font-black text-orange-600 transition hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
+                    >
+                      <Stethoscope size={17} />
+                      Consult Veterinarian
+                      <ArrowRight size={17} className="transition group-hover:translate-x-1" />
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -1255,9 +1271,22 @@ function PetIdCard({
           </div>
         )}
         {!addingPet && <PetCommunityPosts key={pet?._id || pet?.id} pet={pet} />}
+        {!addingPet && <PetConsultationHistory key={`consultations-${pet?._id || pet?.id}`} pet={pet} />}
       </div>
     </div>
   );
+}
+
+function PetConsultationHistory({ pet }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    getConsultations().then((data) => { if (active) setItems((data.consultations || []).filter((item) => String(item.petId?._id || item.petId) === String(pet?._id || pet?.id))); }).catch(() => { if (active) setItems([]); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [pet?._id, pet?.id]);
+  const records = items.filter((item) => item.status !== "AI_ASSESSMENT");
+  return <section className="mt-5 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-[#111820]"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-widest text-orange-500">Long-term health record</p><h3 className="mt-1 text-lg font-black text-zinc-900 dark:text-white">Consultation History</h3></div><Link to={`/consultations?petId=${pet?._id || pet?.id}`} className="text-xs font-bold text-orange-600">Open Doctor Consultation</Link></div>{loading ? <p className="mt-4 text-sm text-zinc-500">Loading consultation history…</p> : records.length === 0 ? <p className="mt-4 text-sm text-zinc-500">Completed and booked consultations for {pet?.name || "this pet"} will appear here.</p> : <div className="mt-4 space-y-3">{records.map((item) => <article key={item._id} className="rounded-xl border border-zinc-100 p-4 dark:border-zinc-800"><div className="flex flex-wrap items-start justify-between gap-2"><div><h4 className="font-bold text-zinc-800 dark:text-zinc-100">{item.primaryConcern}</h4><p className="mt-1 text-xs text-zinc-500">{item.requestedDate ? new Date(item.requestedDate).toLocaleDateString() : new Date(item.createdAt).toLocaleDateString()} · {item.veterinarianId?.name ? `Dr. ${item.veterinarianId.name}` : "Veterinarian pending"}</p></div><span className="rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-bold text-orange-700">{String(item.status).replaceAll("_", " ")}</span></div><p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">{item.aiSummary || item.symptoms}</p>{(item.clinicalObservations || item.doctorAdvice || item.recommendedCare || item.followUpInstructions) && <div className="mt-3 grid gap-2 sm:grid-cols-2">{[["Doctor observations", item.clinicalObservations], ["Advice", item.doctorAdvice || item.recommendations], ["Recommended care", item.recommendedCare], ["Follow-up", item.followUpInstructions]].filter(([, value]) => value).map(([label, value]) => <p key={label} className="rounded-lg bg-zinc-50 p-3 text-xs text-zinc-700 dark:bg-slate-900 dark:text-zinc-200"><strong>{label}: </strong>{value}</p>)}</div>}</article>)}</div>}</section>;
 }
 
 function PetCommunityPosts({ pet }) {
@@ -2061,6 +2090,15 @@ export default function PetProfile() {
       } catch {
         // Ignore photo storage errors.
       }
+
+      fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/pets/${petKey}/photo`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("smartPawToken") || ""}`,
+        },
+        body: JSON.stringify({ profilePhoto: photoData }),
+      }).catch((error) => console.error("Unable to sync pet profile photo:", error));
     };
 
     reader.readAsDataURL(file);

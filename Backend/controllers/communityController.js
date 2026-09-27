@@ -3,9 +3,11 @@ import Follow from "../models/Follow.js";
 import AdoptionRequest from "../models/AdoptionRequest.js";
 import Pet from "../models/Pet.js";
 import mongoose from "mongoose";
+import AdoptionListing from "../models/AdoptionListing.js";
 
-const publicPetFields = "name species breed age gender color bio";
-const communityPostTypes = ["normal", "adoption"];
+const publicPetFields = "name species breed age gender color bio profilePhoto";
+const adoptionPetFields = `${publicPetFields} medical preventiveCare behavior`;
+const communityPostTypes = ["normal"];
 
 function getUserId(req) {
   return req.user?._id || req.user?.id || req.userId;
@@ -29,6 +31,7 @@ function serializePost(post) {
         gender: item.petId.gender,
         color: item.petId.color,
         bio: item.petId.bio,
+        profilePhoto: item.petId.profilePhoto,
       }
     : null;
 
@@ -53,15 +56,10 @@ function serializePost(post) {
 
 export async function getCommunityFeed(req, res) {
   try {
-    const type = req.query.type;
     const filter = {
       isActive: true,
-      postType: { $in: communityPostTypes },
+      postType: "normal",
     };
-
-    if (communityPostTypes.includes(type)) {
-      filter.postType = type;
-    }
 
     const posts = await CommunityPost.find(filter)
       .populate("userId", "name")
@@ -166,9 +164,8 @@ export async function getPetCommunityPosts(req, res) {
 export async function createCommunityPost(req, res) {
   try {
     const userId = getUserId(req);
-    const { petId, type = "normal", caption = "", content = "", media = [] } = req.body;
+    const { petId, caption = "", content = "", media = [] } = req.body;
     const postContent = String(caption || content).trim();
-    const postType = type;
 
     if (!userId) {
       return res.status(401).json({
@@ -184,10 +181,10 @@ export async function createCommunityPost(req, res) {
       });
     }
 
-    if (!communityPostTypes.includes(postType)) {
+    if (req.body.type === "adoption" || req.body.postType === "adoption") {
       return res.status(400).json({
         success: false,
-        message: "Invalid community post type.",
+        message: "Adoption listings must be created in the Adoption section.",
       });
     }
 
@@ -213,7 +210,7 @@ export async function createCommunityPost(req, res) {
     const post = await CommunityPost.create({
       userId,
       petId,
-      postType,
+      postType: "normal",
       content: postContent,
       media: media.map((url) => url.trim()),
     });
@@ -960,6 +957,54 @@ export async function createAdoptionRequest(req, res) {
       message:
         "Failed to create adoption request.",
     });
+  }
+}
+
+export async function getAdoptionListings(req, res) {
+  try {
+    const listings = await AdoptionListing.find({ isActive: true })
+      .populate("ownerId", "name")
+      .populate("petId", adoptionPetFields)
+      .sort({ createdAt: -1 }).lean();
+    return res.json({ success: true, listings });
+  } catch (error) {
+    console.error("Get adoption listings error:", error);
+    return res.status(500).json({ success: false, message: "Failed to fetch adoption listings." });
+  }
+}
+
+export async function createAdoptionListing(req, res) {
+  try {
+    const ownerId = getUserId(req);
+    const { petId, about, reason, location = "", contact = "", requirements = "", temperament = "", healthInfo = "", media = [] } = req.body;
+    if (!ownerId) return res.status(401).json({ success: false, message: "Authentication required." });
+    if (!petId || !String(about || "").trim() || !String(reason || "").trim()) return res.status(400).json({ success: false, message: "Select a pet and provide the pet story and reason for adoption." });
+    if (!Array.isArray(media) || media.length > 5 || media.some((url) => typeof url !== "string" || !url.trim() || url.length > 2048)) return res.status(400).json({ success: false, message: "Choose up to 5 valid pet photos." });
+    const pet = await Pet.findOne({ _id: petId, userId: ownerId });
+    if (!pet) return res.status(403).json({ success: false, message: "You are not authorized to list this pet." });
+    const listing = await AdoptionListing.create({ ownerId, petId, about, reason, location, contact, requirements, temperament, healthInfo, media });
+    await listing.populate([{ path: "ownerId", select: "name" }, { path: "petId", select: adoptionPetFields }]);
+    return res.status(201).json({ success: true, listing });
+  } catch (error) {
+    console.error("Create adoption listing error:", error);
+    return res.status(500).json({ success: false, message: "Failed to create adoption listing." });
+  }
+}
+
+export async function createListingAdoptionRequest(req, res) {
+  try {
+    const requesterId = getUserId(req);
+    if (!requesterId) return res.status(401).json({ success: false, message: "Authentication required." });
+    const listing = await AdoptionListing.findOne({ _id: req.params.listingId, isActive: true });
+    if (!listing) return res.status(404).json({ success: false, message: "Adoption listing not found." });
+    if (String(listing.ownerId) === String(requesterId)) return res.status(400).json({ success: false, message: "You cannot request adoption of your own pet." });
+    const duplicate = await AdoptionRequest.findOne({ listingId: listing._id, requesterId, status: "pending" });
+    if (duplicate) return res.status(409).json({ success: false, message: "You already have a pending adoption request." });
+    const request = await AdoptionRequest.create({ listingId: listing._id, petId: listing.petId, requesterId, ownerId: listing.ownerId, message: String(req.body.message || "").trim() });
+    return res.status(201).json({ success: true, message: "Adoption request submitted successfully.", request });
+  } catch (error) {
+    console.error("Create listing adoption request error:", error);
+    return res.status(500).json({ success: false, message: "Failed to create adoption request." });
   }
 }
 

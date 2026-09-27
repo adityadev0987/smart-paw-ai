@@ -30,6 +30,9 @@ import {
   getMyAdoptionRequests,
   getReceivedAdoptionRequests,
   updateAdoptionRequest,
+  getAdoptionListings,
+  createAdoptionListing,
+  createListingAdoptionRequest,
 } from "../controllers/communityController.js";
 
 import { protect } from "../middleware/authMiddleware.js";
@@ -165,6 +168,10 @@ router.get(
 // ==========================================
 // ADOPTION
 // ==========================================
+
+router.get("/adoption/listings", protect, getAdoptionListings);
+router.post("/adoption/listings", protect, createAdoptionListing);
+router.post("/adoption/listings/:listingId/requests", protect, createListingAdoptionRequest);
 
 // CREATE ADOPTION REQUEST
 router.post(

@@ -27,8 +27,23 @@ const taskSchema = new mongoose.Schema(
         "Health",
         "Medicine",
         "Checkup",
+        "Consultation",
       ],
     },
+
+    time: { type: String, trim: true, default: "" },
+    petName: { type: String, trim: true, default: "" },
+    consultationType: { type: String, trim: true, default: "" },
+    primaryConcern: { type: String, trim: true, default: "" },
+    consultationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Consultation",
+      default: undefined,
+      unique: true,
+      sparse: true,
+    },
+    doctorName: { type: String, trim: true, default: "" },
+    eventStatus: { type: String, enum: ["scheduled", "cancelled"], default: "scheduled" },
 
     completed: {
       type: Boolean,

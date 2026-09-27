@@ -468,6 +468,10 @@ export function AppProvider({ children }) {
   // --------------------------------------------------
 
   const logout = () => {
+    const token = localStorage.getItem("smartPawToken");
+    if (currentUser?.role === "doctor" && token) {
+      fetch(`${API_BASE_URL}/doctor/presence`, { method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ isOnline: false }) }).catch(() => {});
+    }
     clearAuthentication();
   };
 

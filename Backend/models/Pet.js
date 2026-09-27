@@ -127,6 +127,9 @@ const petSchema = new mongoose.Schema(
       maxlength: 500,
     },
 
+    // Optional profile photo used across community and adoption listings.
+    profilePhoto: { type: String, trim: true, default: "" },
+
     age: {
       type: Number,
       required: true,

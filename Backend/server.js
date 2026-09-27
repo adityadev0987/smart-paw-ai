@@ -1,4 +1,5 @@
 import express from "express";
+import http from "http";
 import cors from "cors";
 import dotenv from "dotenv";
 import { connectDB } from "./config/db.js";
@@ -10,6 +11,10 @@ import aiRoutes from "./routes/aiRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import vetRoutes from "./routes/vetRoutes.js";
 import communityRoutes from "./routes/communityRoutes.js";
+import consultationRoutes from "./routes/consultationRoutes.js";
+import doctorRoutes from "./routes/doctorRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
+import { initializeRealtime } from "./services/realtime.js";
 
 import { protect } from "./middleware/authMiddleware.js";
 
@@ -58,6 +63,9 @@ app.use("/api/health-records", healthRecordRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/vets", vetRoutes);
+app.use("/api/consultations", consultationRoutes);
+app.use("/api/doctor", doctorRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // ==========================================
 // COMMUNITY
@@ -66,8 +74,9 @@ app.use("/api/community", communityRoutes);
 
 async function startServer() {
   await connectDB();
-
-  app.listen(PORT, () => {
+  const server = http.createServer(app);
+  initializeRealtime(server, app);
+  server.listen(PORT, () => {
     console.log(
       `Smart Paw AI backend running on port ${PORT}`,
     );

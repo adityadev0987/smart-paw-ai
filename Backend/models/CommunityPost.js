@@ -41,7 +41,7 @@ const communityPostSchema = new mongoose.Schema(
     // Community post type
     postType: {
       type: String,
-      enum: ["normal", "adoption"],
+      enum: ["normal"],
       default: "normal",
       index: true,
     },

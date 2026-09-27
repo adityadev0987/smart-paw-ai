@@ -2,10 +2,11 @@ import mongoose from "mongoose";
 
 const adoptionRequestSchema = new mongoose.Schema(
   {
+    listingId: { type: mongoose.Schema.Types.ObjectId, ref: "AdoptionListing", index: true },
     postId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "CommunityPost",
-      required: true,
+      required: false,
       index: true,
     },
 

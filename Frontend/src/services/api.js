@@ -461,3 +461,47 @@ export async function deleteTask(id) {
 
   return result;
 }
+
+export async function getConsultations() {
+  const response = await fetch(`${API_BASE_URL}/consultations`, { headers: getAuthHeaders() });
+  return parseResponse(response);
+}
+
+export async function createConsultationAssessment(assessmentData) {
+  const response = await fetch(`${API_BASE_URL}/consultations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify(assessmentData),
+  });
+  return parseResponse(response);
+}
+
+export async function requestConsultation(id, bookingData) {
+  const response = await fetch(`${API_BASE_URL}/consultations/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify(bookingData),
+  });
+  return parseResponse(response);
+}
+
+async function consultationRequest(path, options = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers: { ...getAuthHeaders(), ...(options.headers || {}) } });
+  return parseResponse(response);
+}
+
+export const getDoctorConsultations = () => consultationRequest("/doctor/consultations");
+export const updateDoctorConsultationStatus = (id, status) => consultationRequest(`/doctor/consultations/${encodeURIComponent(id)}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+export const updateDoctorConsultationNotes = (id, notes) => consultationRequest(`/doctor/consultations/${encodeURIComponent(id)}/notes`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(notes) });
+export const getConsultationMessages = (id) => consultationRequest(`/consultations/${encodeURIComponent(id)}/messages`);
+export const sendConsultationMessage = (id, message) => consultationRequest(`/consultations/${encodeURIComponent(id)}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) });
+export const updateDoctorPresence = (isOnline) => consultationRequest("/doctor/presence", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isOnline }) });
+export const updateDoctorProfile = (profile) => consultationRequest("/auth/doctors/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(profile) });
+export async function registerDoctorAccount(profile) {
+  const response = await fetch(`${API_BASE_URL}/auth/doctors/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(profile) });
+  return parseResponse(response);
+}
+export const getNotifications = () => consultationRequest("/notifications");
+export const markNotificationRead = (id) => consultationRequest(`/notifications/${encodeURIComponent(id)}/read`, { method: "PATCH" });
+export const cancelConsultation = (id) => consultationRequest(`/consultations/${encodeURIComponent(id)}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "CANCELLED" }) });
+export const rescheduleConsultation = (id, booking) => consultationRequest(`/consultations/${encodeURIComponent(id)}/reschedule`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(booking) });

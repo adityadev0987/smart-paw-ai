@@ -357,6 +357,20 @@ export const updatePet = async (req, res) => {
   }
 };
 
+export const updatePetProfilePhoto = async (req, res) => {
+  try {
+    if (!req.user?.id) return res.status(401).json({ success: false, message: "Authentication required." });
+    const profilePhoto = String(req.body.profilePhoto || "");
+    if (profilePhoto.length > 5 * 1024 * 1024) return res.status(400).json({ success: false, message: "Pet photo is too large." });
+    const pet = await Pet.findOneAndUpdate({ _id: req.params.id, userId: req.user.id }, { $set: { profilePhoto } }, { new: true });
+    if (!pet) return res.status(404).json({ success: false, message: "Pet not found." });
+    return res.json({ success: true, data: pet });
+  } catch (error) {
+    console.error("Update pet profile photo error:", error);
+    return res.status(500).json({ success: false, message: "Failed to update pet photo." });
+  }
+};
+
 // ============================================================
 // DELETE PET
 // ============================================================

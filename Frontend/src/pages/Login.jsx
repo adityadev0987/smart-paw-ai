@@ -57,12 +57,12 @@ export default function Login() {
       setLoading(true);
       setError("");
 
-      await login(
+      const session = await login(
         formData.email.trim(),
         formData.password,
       );
 
-      navigate(location.state?.from || "/dashboard", { replace: true });
+      navigate(location.state?.from || (session.user?.role === "doctor" ? "/doctor/dashboard" : "/dashboard"), { replace: true });
     } catch (err) {
       console.error("Login error:", err);
 
@@ -377,6 +377,8 @@ export default function Login() {
               </Link>
             </p>
           </div>
+
+          <p className="mt-3 text-center text-xs text-slate-500">Veterinarian? <Link to="/doctor/register" className="font-bold text-orange-500">Register a doctor account</Link></p>
 
           {/* Security */}
           <div

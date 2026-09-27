@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
+import User from "../models/User.js";
 
-export const protect = (req, res, next) => {
+export const protect = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -33,9 +34,13 @@ export const protect = (req, res, next) => {
       process.env.JWT_SECRET,
     );
 
-    // Attach user information
+    const account = await User.findById(decoded.userId).select("role");
+    if (!account) return res.status(401).json({ success: false, message: "Account not found.", code: "ACCOUNT_NOT_FOUND" });
+
+    // Resolve the current database role; role values are never trusted from the browser.
     req.user = {
       id: decoded.userId,
+      role: account.role || "owner",
     };
 
     next();
@@ -68,5 +73,18 @@ export const protect = (req, res, next) => {
       message: "Authentication failed.",
       code: "AUTH_FAILED",
     });
+  }
+};
+
+export const requireRole = (role) => async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user?.id).select("role doctorProfile.isApproved");
+    if (!user || user.role !== role || (role === "doctor" && !user.doctorProfile?.isApproved)) {
+      return res.status(403).json({ success: false, message: "This account is not authorized to access this area." });
+    }
+    req.user.role = user.role;
+    next();
+  } catch {
+    return res.status(500).json({ success: false, message: "Unable to verify account access." });
   }
 };

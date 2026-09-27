@@ -7,6 +7,7 @@ const healthRecordSchema = new mongoose.Schema(
       ref: "Pet",
       required: true,
     },
+    consultationId: { type: mongoose.Schema.Types.ObjectId, ref: "Consultation", default: undefined, unique: true, sparse: true },
 
     title: {
       type: String,

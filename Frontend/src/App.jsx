@@ -16,14 +16,17 @@ import VetLocator from "./pages/VetLocator"
 import Dashboard from "./pages/Dashboard"
 import PetProfile from "./pages/PetProfile"
 import Community from "./pages/Community"
+import DoctorConsultation from "./pages/DoctorConsultation"
 import Recommendation from "./pages/Recommendation"
 import Login from "./pages/Login"
 import Register from "./pages/Register"
 import Notfound from "./pages/Notfound"
+import DoctorDashboard from "./pages/DoctorDashboard"
+import DoctorRegister from "./pages/DoctorRegister"
 
 function ProtectedRoute({ children }) {
   const location = useLocation()
-  const { isAuthenticated, isAuthChecking } = useAppContext()
+  const { isAuthenticated, isAuthChecking, currentUser } = useAppContext()
 
   if (isAuthChecking) {
     return null
@@ -32,6 +35,9 @@ function ProtectedRoute({ children }) {
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
+
+  if (currentUser?.role === "doctor" && !location.pathname.startsWith("/doctor")) return <Navigate to="/doctor/dashboard" replace />
+  if (currentUser?.role !== "doctor" && location.pathname.startsWith("/doctor/dashboard")) return <Navigate to="/dashboard" replace />
 
   return children
 }
@@ -42,7 +48,7 @@ function AppContent() {
 
   const hideNavbar =
     location.pathname === "/login" ||
-    location.pathname === "/register"
+    location.pathname === "/register" || location.pathname === "/doctor/register"
 
   return (
     <>
@@ -58,6 +64,9 @@ function AppContent() {
             </ProtectedRoute>
           }
         />
+        <Route path="/consultations" element={<ProtectedRoute><DoctorConsultation /></ProtectedRoute>} />
+        <Route path="/doctor/dashboard" element={<ProtectedRoute><DoctorDashboard /></ProtectedRoute>} />
+        <Route path="/doctor/register" element={<DoctorRegister />} />
         <Route
           path="/planner"
           element={
@@ -130,6 +139,7 @@ function AppContent() {
             </ProtectedRoute>
           }
         />
+        <Route path="/adoption" element={<Navigate to="/community?section=adoption" replace />} />
         <Route
           path="/recommendation"
           element={

@@ -12,6 +12,7 @@ import {
   Plus,
   Trash2,
   X,
+  Stethoscope,
 } from "lucide-react";
 import { useAppContext } from "../hooks/useAppContext";
 import {
@@ -613,6 +614,7 @@ function Planner() {
   );
 
   const getTaskIcon = (type) => {
+    if (type === "Consultation") return Stethoscope;
     const matchedType = taskTypes.find(
       (item) => item.name === type,
     );
@@ -957,6 +959,14 @@ function Planner() {
                               <CalendarDays size={13} />
                               {formatDateForDisplay(task.date)}
                             </div>
+                            {task.type === "Consultation" && (
+                              <div className="mt-2 space-y-1 text-xs text-gray-500 dark:text-gray-400">
+                                {task.time && <p className="flex items-center gap-1.5"><Clock3 size={13} />{task.time}</p>}
+                                {task.consultationType && <p>{task.consultationType}</p>}
+                                {task.doctorName && <p><span className="font-semibold">Veterinarian:</span> {task.doctorName}</p>}
+                                {task.primaryConcern && <p><span className="font-semibold">Main concern:</span> {task.primaryConcern}</p>}
+                              </div>
+                            )}
                           </div>
 
                           <span className="w-fit rounded-full bg-orange-50 px-3 py-1.5 text-[11px] font-bold text-orange-500 dark:bg-orange-950 dark:text-orange-400">
@@ -1032,10 +1042,18 @@ function Planner() {
                               <CalendarDays size={13} />
                               {formatDateForDisplay(task.date)}
                             </div>
+                            {task.type === "Consultation" && (
+                              <div className="mt-2 space-y-1 text-xs text-gray-400 dark:text-gray-500">
+                                {task.time && <p className="flex items-center gap-1.5"><Clock3 size={13} />{task.time}</p>}
+                                {task.consultationType && <p>{task.consultationType}</p>}
+                                {task.doctorName && <p><span className="font-semibold">Veterinarian:</span> {task.doctorName}</p>}
+                                {task.primaryConcern && <p><span className="font-semibold">Main concern:</span> {task.primaryConcern}</p>}
+                              </div>
+                            )}
                           </div>
 
                           <span className="w-fit rounded-full bg-green-50 px-3 py-1.5 text-[11px] font-bold text-green-600 dark:bg-green-950 dark:text-green-400">
-                            Completed
+                            {task.eventStatus === "cancelled" ? "Cancelled" : "Completed"}
                           </span>
                         </div>
 

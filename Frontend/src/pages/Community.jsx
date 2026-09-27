@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useAppContext } from "../hooks/useAppContext";
+import Adoption from "./Adoption";
 import {
   Heart,
   MessageCircle,
@@ -30,7 +31,15 @@ const MAX_COMMUNITY_IMAGES = 5;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 function getMediaUrl(url) {
-  return url?.startsWith("http") ? url : `${API_ORIGIN}${url}`;
+  return url?.startsWith("http") || url?.startsWith("data:") ? url : `${API_ORIGIN}${url}`;
+}
+
+function getPetPhoto(pet) {
+  if (pet?.profilePhoto) return pet.profilePhoto;
+  try {
+    const photos = JSON.parse(localStorage.getItem("smartPawPetPhotos") || "{}");
+    return photos[pet?._id] || photos[pet?.id] || "";
+  } catch { return ""; }
 }
 
 function getAuthHeaders() {
@@ -101,8 +110,9 @@ async function apiRequest(url, options = {}) {
 
 function Community() {
   const { postId: sharedPostId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser } = useAppContext();
-  const [activeSection, setActiveSection] = useState("feed");
+  const [activeSection, setActiveSection] = useState(() => searchParams.get("section") === "adoption" ? "adoption" : "feed");
 
   const [posts, setPosts] = useState([]);
   const [pets, setPets] = useState([]);
@@ -122,11 +132,12 @@ function Community() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [selectedImages, setSelectedImages] = useState([]);
   const [uploadError, setUploadError] = useState("");
-  const [postType, setPostType] = useState("normal");
   const [selectedPetId, setSelectedPetId] =
     useState("");
 
   const [creating, setCreating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
   const [likedPosts, setLikedPosts] = useState({});
   const [likeCounts, setLikeCounts] = useState({});
@@ -146,8 +157,6 @@ function Community() {
   const [followLoading, setFollowLoading] =
     useState({});
 
-  const [adoptionLoading, setAdoptionLoading] =
-    useState({});
 
   const [friends, setFriends] = useState([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
@@ -173,6 +182,16 @@ function Community() {
     },
   ];
 
+  useEffect(() => {
+    if (searchParams.get("section") === "adoption") setActiveSection("adoption");
+  }, [searchParams]);
+
+  function selectSection(section) {
+    setActiveSection(section);
+    setSearchParams(section === "adoption" ? { section: "adoption" } : {});
+    if (section === "friends") loadFriends();
+  }
+
   // ==================================================
   // LOAD POSTS
   // ==================================================
@@ -185,10 +204,6 @@ function Community() {
       let url = sharedPostId
         ? `${API_BASE_URL}/community/posts/${sharedPostId}`
         : `${API_BASE_URL}/community/posts`;
-
-      if (!sharedPostId && activeSection === "adoption") {
-        url += "?type=adoption";
-      }
 
       const data = await apiRequest(url);
 
@@ -242,6 +257,25 @@ function Community() {
 
       setPets(loadedPets);
 
+      // Pet photos created by older versions were kept in this browser only.
+      // Sync those existing photos once so feed serialization can serve them.
+      try {
+        const savedPhotos = JSON.parse(localStorage.getItem("smartPawPetPhotos") || "{}");
+        await Promise.all(loadedPets.map(async (pet) => {
+          const id = pet._id || pet.id;
+          const photo = savedPhotos[id];
+          if (!photo || pet.profilePhoto) return;
+          await apiRequest(`${API_BASE_URL}/pets/${id}/photo`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ profilePhoto: photo }),
+          });
+          pet.profilePhoto = photo;
+        }));
+      } catch (photoSyncError) {
+        console.warn("Could not sync an existing pet photo:", photoSyncError);
+      }
+
       if (loadedPets.length > 0) {
         setSelectedPetId(
           loadedPets[0]._id || loadedPets[0].id,
@@ -259,7 +293,7 @@ function Community() {
   }, []);
 
   useEffect(() => {
-    if (activeSection === "friends") return undefined;
+    if (activeSection !== "feed") return undefined;
     const timer = window.setTimeout(() => void loadPosts(), 0);
     return () => window.clearTimeout(timer);
   }, [activeSection, loadPosts]);
@@ -568,52 +602,6 @@ function Community() {
   }
 
   // ==================================================
-  // ADOPTION REQUEST
-  // ==================================================
-
-  async function requestAdoption(postId) {
-    try {
-      setAdoptionLoading((previous) => ({
-        ...previous,
-        [postId]: true,
-      }));
-
-      await apiRequest(
-        `${API_BASE_URL}/community/posts/${postId}/adoption-request`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            message:
-              "I am interested in adopting this pet.",
-          }),
-        },
-      );
-
-      alert(
-        "Adoption request submitted successfully.",
-      );
-    } catch (err) {
-      console.error(
-        "Adoption request error:",
-        err,
-      );
-
-      alert(
-        err.message ||
-          "Unable to submit adoption request.",
-      );
-    } finally {
-      setAdoptionLoading((previous) => ({
-        ...previous,
-        [postId]: false,
-      }));
-    }
-  }
-
-  // ==================================================
   // CREATE POST
   // ==================================================
 
@@ -703,7 +691,7 @@ function Community() {
           },
           body: JSON.stringify({
             petId: selectedPetId,
-            type: postType,
+            type: "normal",
             caption: trimmedCaption,
             media: uploadedMedia,
           }),
@@ -712,7 +700,6 @@ function Community() {
 
       setCaption("");
       clearSelectedImages();
-      setPostType("normal");
       setShowCreatePost(false);
 
       await loadPosts();
@@ -736,13 +723,8 @@ function Community() {
   // ==================================================
 
   async function deletePost(postId) {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this post?",
-    );
-
-    if (!confirmed) return;
-
     try {
+      setDeleteSubmitting(true);
       await apiRequest(
         `${API_BASE_URL}/community/posts/${postId}`,
         {
@@ -755,6 +737,7 @@ function Community() {
           (post) => post._id !== postId,
         ),
       );
+      setDeleteTarget(null);
     } catch (err) {
       console.error(
         "Delete post error:",
@@ -765,6 +748,8 @@ function Community() {
         err.message ||
           "Unable to delete post.",
       );
+    } finally {
+      setDeleteSubmitting(false);
     }
   }
 
@@ -893,7 +878,7 @@ function Community() {
 
           <div className="ml-auto flex items-center gap-2">
 
-            <button
+            {activeSection === "feed" && <button
               type="button"
               onClick={() =>
                 setShowCreatePost(true)
@@ -905,7 +890,7 @@ function Community() {
               <span className="hidden sm:inline">
                 Create Post
               </span>
-            </button>
+            </button>}
 
             <div className="hidden h-9 w-9 items-center justify-center rounded-full bg-orange-100 text-orange-500 sm:flex dark:bg-orange-500/10">
               <PawPrint size={17} />
@@ -921,7 +906,7 @@ function Community() {
           MAIN
       ================================================== */}
 
-      <div className="mx-auto grid max-w-[1500px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[220px_minmax(0,1fr)_280px]">
+      <div className={`mx-auto grid max-w-[1500px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 ${activeSection === "adoption" ? "lg:grid-cols-[220px_minmax(0,1fr)]" : "lg:grid-cols-[220px_minmax(0,1fr)_280px]"}`}>
 
         {/* ==================================================
             LEFT SIDEBAR
@@ -968,8 +953,7 @@ function Community() {
                     key={item.id}
                     type="button"
                     onClick={() => {
-                      setActiveSection(item.id);
-                      if (item.id === "friends") loadFriends();
+                      selectSection(item.id);
                     }}
                     className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${
                       active
@@ -1023,8 +1007,7 @@ function Community() {
                   key={item.id}
                   type="button"
                   onClick={() => {
-                    setActiveSection(item.id);
-                    if (item.id === "friends") loadFriends();
+                      selectSection(item.id);
                   }}
                   className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-xs font-bold ${
                     activeSection === item.id
@@ -1041,6 +1024,7 @@ function Community() {
 
           </div>
 
+          <div className={activeSection === "adoption" ? "hidden" : ""}>
           {/* TITLE */}
 
           <div className="mb-4 flex items-end justify-between">
@@ -1055,9 +1039,6 @@ function Community() {
 
                 {activeSection === "feed" &&
                   "Your Pet Feed"}
-
-                {activeSection === "adoption" &&
-                  "Pets Looking for a Home"}
 
                 {activeSection === "friends" &&
                   "Friends You Follow"}
@@ -1244,10 +1225,6 @@ function Community() {
                   openComments[postId],
                 );
 
-              const isAdoption =
-                post.type === "adoption" ||
-                post.postType === "adoption";
-
               return (
                 <article
                   key={postId}
@@ -1260,8 +1237,8 @@ function Community() {
 
                     <div className="flex min-w-0 items-center gap-3">
 
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-orange-100 text-orange-500 dark:bg-orange-500/10" aria-label={`${post.userId?.name || "Pet Parent"} avatar`}>
-                        <PawPrint size={20} />
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-orange-100 text-orange-500 dark:bg-orange-500/10" aria-label={`${pet?.name || "Pet"} avatar`}>
+                        {getPetPhoto(pet) ? <img src={getMediaUrl(getPetPhoto(pet))} alt="" className="h-full w-full object-cover" /> : <PawPrint size={20} />}
                       </div>
 
                       <div className="min-w-0">
@@ -1269,15 +1246,9 @@ function Community() {
                         <div className="flex items-center gap-2">
 
                           <p className="truncate text-sm font-black">
-                            {post.userId?.name ||
-                              "Pet Parent"}
+                            {pet?.name || "Pet"}
                           </p>
 
-                          {isAdoption && (
-                            <span className="rounded-full bg-green-100 px-2 py-0.5 text-[9px] font-black uppercase text-green-700 dark:bg-green-500/10 dark:text-green-400">
-                              Adoption
-                            </span>
-                          )}
 
                         </div>
 
@@ -1347,7 +1318,7 @@ function Community() {
                           ><Pencil size={17} /></button>
                           <button
                             type="button"
-                            onClick={() => deletePost(postId)}
+                            onClick={() => setDeleteTarget(post)}
                             aria-label="Delete post"
                             title="Delete post"
                             className="rounded-full p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-slate-800"
@@ -1506,28 +1477,6 @@ function Community() {
 
                       </div>
 
-                      {isAdoption && (
-                        <button
-                          type="button"
-                          disabled={
-                            adoptionLoading[
-                              postId
-                            ]
-                          }
-                          onClick={() =>
-                            requestAdoption(
-                              postId,
-                            )
-                          }
-                          className="rounded-full bg-orange-500 px-4 py-2 text-xs font-black text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {adoptionLoading[
-                            postId
-                          ]
-                            ? "Sending..."
-                            : "Request Adoption"}
-                        </button>
-                      )}
 
                     </div>
 
@@ -1709,13 +1658,15 @@ function Community() {
               );
             })}
 
+          </div>
+          {activeSection === "adoption" && <Adoption embedded />}
         </section>
 
         {/* ==================================================
             RIGHT SIDEBAR
         ================================================== */}
 
-        <aside className="hidden lg:block">
+        <aside className={activeSection === "adoption" ? "hidden" : "hidden lg:block"}>
 
           <div className="sticky top-[94px] space-y-5">
 
@@ -1832,8 +1783,7 @@ function Community() {
               </h3>
 
               <p className="mt-2 text-xs leading-5 text-orange-100">
-                Share useful pet moments,
-                adoption opportunities and
+                Share useful pet moments and
                 experiences with other pet
                 parents.
               </p>
@@ -1856,6 +1806,19 @@ function Community() {
         </aside>
 
       </div>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" role="presentation">
+          <section role="dialog" aria-modal="true" aria-labelledby="delete-post-title" className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-[#0d131a]">
+            <h2 id="delete-post-title" className="text-lg font-black">Delete post?</h2>
+            <p className="mt-2 text-sm text-slate-500">Are you sure you want to delete this post?</p>
+            <div className="mt-6 flex gap-3">
+              <button type="button" disabled={deleteSubmitting} onClick={() => setDeleteTarget(null)} className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold dark:border-slate-700">Cancel</button>
+              <button type="button" disabled={deleteSubmitting} onClick={() => deletePost(deleteTarget._id)} className="flex-1 rounded-xl bg-red-500 px-4 py-3 text-sm font-black text-white disabled:opacity-60">{deleteSubmitting ? "Deleting..." : "Delete"}</button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {editingPost && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
@@ -1975,64 +1938,6 @@ function Community() {
 
                   </select>
                 )}
-
-              </div>
-
-              {/* POST TYPE */}
-
-              <div>
-
-                <label className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
-                  Post Type
-                </label>
-
-                <div className="grid grid-cols-2 gap-2">
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPostType("normal")
-                    }
-                    className={`rounded-xl border p-3 text-left transition ${
-                      postType === "normal"
-                        ? "border-orange-500 bg-orange-50 dark:bg-orange-500/10"
-                        : "border-slate-200 dark:border-slate-700"
-                    }`}
-                  >
-
-                    <p className="text-xs font-black">
-                      Normal Post
-                    </p>
-
-                    <p className="mt-1 text-[10px] text-slate-400">
-                      Share a pet moment
-                    </p>
-
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPostType("adoption")
-                    }
-                    className={`rounded-xl border p-3 text-left transition ${
-                      postType === "adoption"
-                        ? "border-orange-500 bg-orange-50 dark:bg-orange-500/10"
-                        : "border-slate-200 dark:border-slate-700"
-                    }`}
-                  >
-
-                    <p className="text-xs font-black">
-                      Adoption
-                    </p>
-
-                    <p className="mt-1 text-[10px] text-slate-400">
-                      Find a home for your pet
-                    </p>
-
-                  </button>
-
-                </div>
 
               </div>
 
