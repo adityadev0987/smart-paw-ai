@@ -21,11 +21,11 @@ import {
   getConsultations,
   requestConsultation,
   getConsultationMessages,
+  getConsultationById,
   sendConsultationMessage,
   cancelConsultation,
   rescheduleConsultation,
 } from "../services/api";
-import { connectConsultationSocket } from "../services/consultationSocket";
 
 const API_BASE_URL = "http://localhost:5000/api";
 const MAX_PHOTOS = 5;
@@ -104,7 +104,8 @@ export default function DoctorConsultation() {
   const { pets = [], isPetLoading, setCurrentPet } = useAppContext();
   const [searchParams] = useSearchParams();
   const preselectedPetId = searchParams.get("petId") || "";
-  const [view, setView] = useState(preselectedPetId ? "concern" : "dashboard");
+  const preselectedConsultationId = searchParams.get("consultationId") || "";
+  const [view, setView] = useState(preselectedConsultationId ? "details" : preselectedPetId ? "concern" : "dashboard");
   const [selectedPetId, setSelectedPetId] = useState(preselectedPetId);
   const [history, setHistory] = useState([]);
   const [consultation, setConsultation] = useState(null);
@@ -122,6 +123,10 @@ export default function DoctorConsultation() {
     requestedTime: "",
     ownerMessage: "",
   });
+  const handleConsultationUpdate = useCallback((updated) => {
+    setConsultation(updated);
+    setHistory((current) => current.map((item) => item._id === updated._id ? updated : item));
+  }, []);
 
   const selectedPet = useMemo(
     () =>
@@ -146,6 +151,14 @@ export default function DoctorConsultation() {
     const timer = window.setTimeout(() => loadHistory(), 0);
     return () => window.clearTimeout(timer);
   }, [loadHistory]);
+  useEffect(() => {
+    if (!preselectedConsultationId) return undefined;
+    let active = true;
+    getConsultationById(preselectedConsultationId)
+      .then((result) => { if (active) { setConsultation(result.consultation); setView("details"); setError(""); } })
+      .catch((loadError) => { if (active) setError(loadError.message || "Unable to open this consultation."); });
+    return () => { active = false; };
+  }, [preselectedConsultationId]);
   useEffect(() => {
     const timer = window.setInterval(() => loadHistory(), 20000);
     return () => window.clearInterval(timer);
@@ -720,7 +733,7 @@ export default function DoctorConsultation() {
           consultation={consultation}
           onBook={() => { setRescheduling(false); setView("booking"); }}
           onReschedule={() => { setRescheduling(true); setBooking({ consultationType: consultation.consultationType || "Video Consultation", requestedDate: consultation.requestedDate ? new Date(consultation.requestedDate).toISOString().slice(0, 10) : "", requestedTime: consultation.requestedTime || "", ownerMessage: consultation.ownerMessage || "" }); setView("booking"); }}
-          onUpdated={(updated) => { setConsultation(updated); setHistory((current) => current.map((item) => item._id === updated._id ? updated : item)); }}
+          onUpdated={handleConsultationUpdate}
           onCancelled={async () => { await cancelConsultation(consultation._id); await loadHistory(); setConsultation((current) => ({ ...current, status: "CANCELLED" })); }}
         />
       )}
@@ -915,6 +928,14 @@ function ConsultationCard({ item, onOpen }) {
       >
         View Details <ArrowRight size={15} />
       </button>
+      {(item.report?.submittedAt || item.status === "COMPLETED") && (
+        <Link
+          to={`/consultations/${item._id}/report`}
+          className="mt-3 flex w-fit items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700"
+        >
+          <FileText size={14} /> {item.report?.submittedAt ? "View Final Report & PDF" : "Check Final Report"}
+        </Link>
+      )}
     </article>
   );
 }
@@ -1138,6 +1159,13 @@ function ConsultationDetails({ consultation, onBook, onReschedule, onUpdated, on
           {!consultation.doctorAdvice && !consultation.doctorNotes && <p className="mt-2 text-sm text-slate-500">Veterinarian notes will appear here when saved.</p>}
         </section>
       )}
+      {(consultation.report?.submittedAt || consultation.status === "COMPLETED") && (
+        <section className="rounded-2xl border border-emerald-200 bg-white p-5 dark:border-emerald-900 dark:bg-[#0d131a]">
+          <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black uppercase tracking-widest text-emerald-600">Final consultation report</p><h3 className="mt-1 text-lg font-black">Dr. {consultation.veterinarianId?.name || "Veterinarian"} · {pet.name || "Pet"}</h3></div><p className="text-xs text-slate-500">{formatDate(consultation.requestedDate)}</p></div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">{[["Consultation summary", consultation.report.summary], ["Symptoms discussed", consultation.report.symptomsDiscussed], ["Doctor observations", consultation.report.observations], ["Diagnosis / assessment", consultation.report.diagnosis], ["Advice / recommendations", consultation.report.advice], ["Medicines", consultation.report.medicines], ["Dosage / instructions", consultation.report.dosageInstructions], ["Follow-up", consultation.report.followUp], ["Additional notes", consultation.report.additionalNotes]].filter(([, value]) => value).map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3 dark:bg-slate-900"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 whitespace-pre-wrap text-sm">{value}</p></div>)}</div>
+          <Link to={`/consultations/${consultation._id}/report`} className="mt-4 inline-flex rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white">{consultation.report?.submittedAt ? "View Final Report & PDF" : "Check Final Report"}</Link>
+        </section>
+      )}
       {consultation.veterinarianId && <OwnerConsultationChat consultation={consultation} onUpdated={onUpdated} />}
       {["ASSIGNED", "PENDING", "ACCEPTED"].includes(consultation.status) && <button onClick={onCancelled} className="rounded-xl border border-red-200 px-4 py-2 text-sm font-bold text-red-600">Cancel consultation</button>}
       {["ASSIGNED", "PENDING", "ACCEPTED"].includes(consultation.status) && <button onClick={onReschedule} className="rounded-xl border border-orange-200 px-4 py-2 text-sm font-bold text-orange-700">Reschedule</button>}
@@ -1159,21 +1187,26 @@ function OwnerConsultationChat({ consultation, onUpdated }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const endRef = useRef(null);
+  const chatContainerRef = useRef(null);
   const refreshMessages = useCallback(async () => {
     try { const result = await getConsultationMessages(consultation._id); setMessages(result.messages || []); }
     catch (loadError) { setError(loadError.message || "Unable to load consultation chat."); }
   }, [consultation._id]);
+  const refreshConsultation = useCallback(async () => {
+    try { const result = await getConsultationById(consultation._id); onUpdated(result.consultation); }
+    catch { /* The surrounding consultation history refresh handles connection errors. */ }
+  }, [consultation._id, onUpdated]);
   useEffect(() => {
-    const loadTimer = window.setTimeout(refreshMessages, 0);
-    const socket = connectConsultationSocket();
-    socket.on("connect", () => socket.emit("consultation:join", consultation._id));
-    socket.on("chat:message", (message) => setMessages((current) => current.some((item) => item._id === message._id) ? current : [...current, message]));
-    socket.on("consultation:updated", (updated) => onUpdated(updated));
-    const poll = window.setInterval(refreshMessages, 20000);
-    return () => { window.clearTimeout(loadTimer); window.clearInterval(poll); socket.disconnect(); };
-  }, [consultation._id, refreshMessages, onUpdated]);
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [messages]);
+    const loadTimer = window.setTimeout(() => { refreshMessages(); refreshConsultation(); }, 0);
+    const poll = window.setInterval(() => { refreshMessages(); refreshConsultation(); }, 5000);
+    return () => { window.clearTimeout(loadTimer); window.clearInterval(poll); };
+  }, [consultation._id, refreshMessages, refreshConsultation]);
+  useEffect(() => {
+    // Keep the conversation scrolled within its own panel; scrollIntoView on
+    // the last message also moves the entire history page to the bottom.
+    const chatContainer = chatContainerRef.current;
+    if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
+  }, [messages]);
   const send = async (event) => {
     event.preventDefault(); if (!draft.trim()) return;
     setSending(true); setError("");
@@ -1181,7 +1214,7 @@ function OwnerConsultationChat({ consultation, onUpdated }) {
     catch (sendError) { setError(sendError.message || "Unable to send your message."); }
     finally { setSending(false); }
   };
-  return <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-[#0d131a]"><h3 className="font-black">Chat with your veterinarian</h3><div className="mt-3 max-h-80 space-y-2 overflow-y-auto rounded-xl bg-slate-50 p-3 dark:bg-slate-900">{messages.length ? messages.map((message) => <div key={message._id} className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm ${message.senderRole === "owner" ? "ml-auto bg-orange-500 text-white" : "bg-white text-slate-700 shadow-sm"}`}><p>{message.message}</p><p className={`mt-1 text-[10px] ${message.senderRole === "owner" ? "text-orange-100" : "text-slate-400"}`}>{message.senderId?.name} · {new Date(message.createdAt).toLocaleString()}</p></div>) : <p className="py-10 text-center text-sm text-slate-400">No messages yet. Send your veterinarian a message here.</p>}<div ref={endRef} /></div>{error && <p role="alert" className="mt-2 text-xs text-red-600">{error}</p>}{consultation.status !== "COMPLETED" && consultation.status !== "CANCELLED" && <form onSubmit={send} className="mt-3 flex gap-2"><input value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={4000} placeholder="Message your veterinarian…" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400" /><button disabled={sending || !draft.trim()} className="rounded-xl bg-orange-500 px-4 text-sm font-bold text-white disabled:opacity-50">{sending ? "Sending…" : "Send"}</button></form>}</section>;
+  return <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-[#0d131a]"><h3 className="font-black">Chat with your veterinarian</h3><div ref={chatContainerRef} className="mt-3 max-h-80 space-y-2 overflow-y-auto rounded-xl bg-slate-50 p-3 dark:bg-slate-900">{messages.length ? messages.map((message) => <div key={message._id} className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm ${message.senderRole === "owner" ? "ml-auto bg-orange-500 text-white" : "bg-white text-slate-700 shadow-sm"}`}><p>{message.message}</p><p className={`mt-1 text-[10px] ${message.senderRole === "owner" ? "text-orange-100" : "text-slate-400"}`}>{message.senderId?.name} · {new Date(message.createdAt).toLocaleString()}</p></div>) : <p className="py-10 text-center text-sm text-slate-400">No messages yet. Your veterinarian can start the chat at the scheduled consultation.</p>}</div>{error && <p role="alert" className="mt-2 text-xs text-red-600">{error}</p>}{consultation.status === "IN_PROGRESS" ? <form onSubmit={send} className="mt-3 flex gap-2"><input value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={4000} placeholder="Message your veterinarian…" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400" /><button disabled={sending || !draft.trim()} className="rounded-xl bg-orange-500 px-4 text-sm font-bold text-white disabled:opacity-50">{sending ? "Sending…" : "Send"}</button></form> : consultation.status !== "COMPLETED" && consultation.status !== "CANCELLED" ? <p className="mt-3 text-xs text-slate-500">Chat opens when your veterinarian starts the consultation.</p> : <p className="mt-3 text-xs text-slate-500">This consultation chat is closed. Your report remains available above after submission.</p>}</section>;
 }
 
 function PhotoGallery({ media }) {

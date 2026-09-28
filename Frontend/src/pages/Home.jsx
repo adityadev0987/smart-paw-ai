@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import {
   HeartPulse,
   CalendarCheck,
@@ -79,7 +79,13 @@ const features = [
 ];
 
 function Home() {
-  const { isAuthenticated } = useAppContext();
+  const { isAuthenticated, currentUser } = useAppContext();
+
+  // The public landing page is for signed-out visitors. Send signed-in users
+  // to the dashboard for their role so doctors never see owner focused tools.
+  if (isAuthenticated) {
+    return <Navigate to={currentUser?.role === "doctor" ? "/doctor/dashboard" : "/dashboard"} replace />;
+  }
 
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-orange-50/60 via-white to-white transition-colors duration-300 dark:from-[#111820] dark:via-[#0B0F14] dark:to-[#0B0F14]">

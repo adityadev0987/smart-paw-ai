@@ -61,7 +61,7 @@ export async function createConsultationAssessment(req, res) {
       aiAssessment: { summary: aiSummary, possibleConcerns, recommendedActions: recommendations, disclaimer },
       aiRiskLevel: riskLevel, aiSummary, healthSnapshot, status: "AI_ASSESSMENT",
     });
-    const populated = await Consultation.findById(consultation._id).populate("petId", "name species breed age gender profilePhoto").populate("veterinarianId", "name email doctorProfile.profilePhoto doctorProfile.qualification doctorProfile.specialization doctorProfile.isOnline").lean();
+    const populated = await Consultation.findById(consultation._id).populate("petId", "name species breed age gender profilePhoto").populate("veterinarianId", "name email doctorProfile.profilePhoto doctorProfile.clinicName doctorProfile.registrationNumber doctorProfile.qualification doctorProfile.specialization doctorProfile.isOnline").lean();
     return res.status(201).json({ success: true, consultation: populated });
   } catch (error) {
     console.error("Consultation assessment error:", error);
@@ -71,7 +71,7 @@ export async function createConsultationAssessment(req, res) {
 
 export async function getConsultations(req, res) {
   try {
-    const consultations = await Consultation.find({ userId: req.user.id }).populate("petId", "name species breed age gender profilePhoto").populate("veterinarianId", "name email doctorProfile.profilePhoto doctorProfile.qualification doctorProfile.specialization doctorProfile.isOnline").sort({ createdAt: -1 }).lean();
+    const consultations = await Consultation.find({ userId: req.user.id }).populate("petId", "name species breed age gender profilePhoto").populate("veterinarianId", "name email doctorProfile.profilePhoto doctorProfile.clinicName doctorProfile.registrationNumber doctorProfile.qualification doctorProfile.specialization doctorProfile.isOnline").sort({ createdAt: -1 }).lean();
     return res.json({ success: true, consultations });
   } catch (error) {
     console.error("Get consultations error:", error);
@@ -83,7 +83,7 @@ export async function getConsultation(req, res) {
   try {
     if (!mongoose.isValidObjectId(req.params.consultationId)) return res.status(400).json({ success: false, message: "Invalid consultation ID." });
     const access = req.user.role === "doctor" ? { veterinarianId: req.user.id } : { userId: req.user.id };
-    const consultation = await Consultation.findOne({ _id: req.params.consultationId, ...access }).populate("petId", "name species breed age gender profilePhoto").populate("userId", "name email").populate("veterinarianId", "name email doctorProfile.profilePhoto doctorProfile.qualification doctorProfile.specialization doctorProfile.isOnline").lean();
+    const consultation = await Consultation.findOne({ _id: req.params.consultationId, ...access }).populate("petId", "name species breed age gender profilePhoto").populate("userId", "name email").populate("veterinarianId", "name email doctorProfile.profilePhoto doctorProfile.clinicName doctorProfile.registrationNumber doctorProfile.qualification doctorProfile.specialization doctorProfile.isOnline").lean();
     if (!consultation) return res.status(404).json({ success: false, message: "Consultation not found." });
     return res.json({ success: true, consultation });
   } catch (error) {
@@ -144,8 +144,8 @@ export async function requestConsultation(req, res) {
       throw plannerError;
     }
     await notifyUser(req.app, req.user.id, consultation._id, "doctor_assigned", `Dr. ${assignedDoctor.name} has been assigned to ${pet.name}'s consultation.`);
-    await notifyUser(req.app, assignedDoctor._id, consultation._id, "consultation_assigned", `A new ${consultation.primaryConcern.toLowerCase()} consultation for ${pet.name} has been assigned to you.`);
-    const populated = await Consultation.findById(consultation._id).populate("petId", "name species breed age gender profilePhoto").populate("veterinarianId", "name email doctorProfile.profilePhoto doctorProfile.qualification doctorProfile.specialization doctorProfile.isOnline").lean();
+    await notifyUser(req.app, assignedDoctor._id, consultation._id, "consultation_assigned", `New consultation assigned: ${pet.name} on ${requestedDate} at ${requestedTime}.`);
+    const populated = await Consultation.findById(consultation._id).populate("petId", "name species breed age gender profilePhoto").populate("veterinarianId", "name email doctorProfile.profilePhoto doctorProfile.clinicName doctorProfile.registrationNumber doctorProfile.qualification doctorProfile.specialization doctorProfile.isOnline").lean();
     req.app.get("io")?.to(`consultation:${consultation._id}`).emit("consultation:updated", populated);
     return res.json({ success: true, consultation: populated, message: "Consultation request submitted successfully." });
   } catch (error) {
@@ -200,7 +200,7 @@ export async function rescheduleConsultation(req, res) {
     if (String(consultation.veterinarianId) !== String(doctor._id)) await notifyUser(req.app, consultation.veterinarianId, consultation._id, "consultation_rescheduled", `${pet.name}'s consultation was reassigned to another veterinarian.`);
     await notifyUser(req.app, req.user.id, consultation._id, "consultation_rescheduled", `${pet.name}'s consultation has been rescheduled with Dr. ${doctor.name}.`);
     await notifyUser(req.app, doctor._id, consultation._id, "consultation_rescheduled", `${pet.name}'s consultation was scheduled for ${requestedDate} at ${requestedTime}.`);
-    const populated = await Consultation.findById(updated._id).populate("petId", "name species breed age gender profilePhoto").populate("veterinarianId", "name email doctorProfile.profilePhoto doctorProfile.qualification doctorProfile.specialization doctorProfile.isOnline").lean();
+    const populated = await Consultation.findById(updated._id).populate("petId", "name species breed age gender profilePhoto").populate("veterinarianId", "name email doctorProfile.profilePhoto doctorProfile.clinicName doctorProfile.registrationNumber doctorProfile.qualification doctorProfile.specialization doctorProfile.isOnline").lean();
     req.app.get("io")?.to(`consultation:${consultation._id}`).emit("consultation:updated", populated);
     return res.json({ success: true, consultation: populated, message: "Consultation rescheduled successfully." });
   } catch (error) {

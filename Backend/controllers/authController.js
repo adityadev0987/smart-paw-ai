@@ -206,10 +206,12 @@ export const registerDoctor = async (req, res) => {
 
 export const updateDoctorProfile = async (req, res) => {
   try {
-    const { profilePhoto, qualification, specialization, experience, availableDays, timeSlots, isAcceptingConsultations } = req.body;
+    const { profilePhoto, clinicName, qualification, registrationNumber, specialization, experience, availableDays, timeSlots, isAcceptingConsultations } = req.body;
     const updates = {};
     if (profilePhoto !== undefined) updates["doctorProfile.profilePhoto"] = String(profilePhoto).slice(0, 2048);
+    if (clinicName !== undefined) updates["doctorProfile.clinicName"] = String(clinicName).trim().slice(0, 180);
     if (qualification !== undefined) updates["doctorProfile.qualification"] = String(qualification).slice(0, 160);
+    if (registrationNumber !== undefined) updates["doctorProfile.registrationNumber"] = String(registrationNumber).trim().slice(0, 100);
     if (specialization !== undefined) updates["doctorProfile.specialization"] = (Array.isArray(specialization) ? specialization : String(specialization).split(",")).map((s) => String(s).trim()).filter(Boolean);
     if (experience !== undefined) updates["doctorProfile.experience"] = Math.max(0, Number(experience) || 0);
     if (availableDays !== undefined) updates["doctorProfile.availableDays"] = availableDays;

@@ -467,6 +467,17 @@ export async function getConsultations() {
   return parseResponse(response);
 }
 
+export const getConsultationById = (id) => consultationRequest(`/consultations/${encodeURIComponent(id)}`);
+export const getConsultationReport = (id) => consultationRequest(`/consultations/${encodeURIComponent(id)}/report`);
+export async function getConsultationReportPdf(id) {
+  const response = await fetch(`${API_BASE_URL}/consultations/${encodeURIComponent(id)}/report/pdf`, { headers: getAuthHeaders() });
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    throw new Error(result.message || "Unable to open the consultation report PDF.");
+  }
+  return response.blob();
+}
+
 export async function createConsultationAssessment(assessmentData) {
   const response = await fetch(`${API_BASE_URL}/consultations`, {
     method: "POST",
@@ -492,6 +503,7 @@ async function consultationRequest(path, options = {}) {
 
 export const getDoctorConsultations = () => consultationRequest("/doctor/consultations");
 export const updateDoctorConsultationStatus = (id, status) => consultationRequest(`/doctor/consultations/${encodeURIComponent(id)}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+export const submitDoctorConsultationReport = (id, report) => consultationRequest(`/doctor/consultations/${encodeURIComponent(id)}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(report) });
 export const updateDoctorConsultationNotes = (id, notes) => consultationRequest(`/doctor/consultations/${encodeURIComponent(id)}/notes`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(notes) });
 export const getConsultationMessages = (id) => consultationRequest(`/consultations/${encodeURIComponent(id)}/messages`);
 export const sendConsultationMessage = (id, message) => consultationRequest(`/consultations/${encodeURIComponent(id)}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) });

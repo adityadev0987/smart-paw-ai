@@ -43,7 +43,7 @@ const taskSchema = new mongoose.Schema(
       sparse: true,
     },
     doctorName: { type: String, trim: true, default: "" },
-    eventStatus: { type: String, enum: ["scheduled", "cancelled"], default: "scheduled" },
+    eventStatus: { type: String, enum: ["scheduled", "cancelled", "completed"], default: "scheduled" },
 
     completed: {
       type: Boolean,

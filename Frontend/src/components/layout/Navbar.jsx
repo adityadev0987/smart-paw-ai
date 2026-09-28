@@ -124,7 +124,13 @@ function Navbar() {
       setNotifications((current) => current.map((value) => value._id === item._id ? { ...value, readAt: new Date().toISOString() } : value));
     }
     setShowNotifications(false);
-    navigate(currentUser?.role === "doctor" ? "/doctor/dashboard" : "/consultations");
+    navigate(currentUser?.role === "doctor" && item.consultationId
+      ? `/doctor/consultations/${item.consultationId}`
+      : item.type === "consultation_report" && item.consultationId
+        ? `/consultations/${item.consultationId}/report`
+        : item.consultationId
+          ? `/consultations?consultationId=${item.consultationId}`
+        : currentUser?.role === "doctor" ? "/doctor/dashboard" : "/consultations");
   };
 
   const desktopLinkClass = ({ isActive }) =>

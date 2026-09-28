@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   CalendarDays,
   Check,
@@ -20,6 +21,7 @@ import {
   createTask,
   updateTask,
   deleteTask,
+  getDoctorConsultations,
 } from "../services/api";
 
 const taskTypes = [
@@ -442,7 +444,7 @@ function PetSelector({ pets, currentPet, onChange }) {
   );
 }
 
-function Planner() {
+function OwnerPlanner() {
   const {
     pets = [],
     currentPet,
@@ -1101,6 +1103,26 @@ function Planner() {
       </div>
     </section>
   );
+}
+
+function DoctorPlanner() {
+  const [consultations, setConsultations] = useState([]);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try { const data = await getDoctorConsultations(); if (active) { setConsultations(data.consultations || []); setError(""); } }
+      catch (err) { if (active) setError(err.message || "Unable to load your planner."); }
+    };
+    load(); const timer = window.setInterval(load, 20000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+  return <main className="min-h-[calc(100vh-4rem)] bg-gray-50 px-4 py-8 dark:bg-[#0b0f14] sm:px-6 lg:px-8"><div className="mx-auto max-w-5xl"><header className="mb-6"><p className="text-xs font-black uppercase tracking-widest text-orange-500">Doctor schedule</p><h1 className="mt-1 text-3xl font-black text-slate-900 dark:text-white">Consultation planner</h1><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Appointments assigned to you appear here automatically.</p></header>{error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}{consultations.length ? <div className="space-y-3">{consultations.map((item) => <article key={item._id} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#111820]"><div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-600"><Stethoscope size={20} /></div><div><h2 className="font-extrabold text-slate-900 dark:text-white">{item.petId?.name || "Pet"} · {item.primaryConcern}</h2><p className="mt-1 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400"><CalendarDays size={13} />{item.requestedDate ? new Date(item.requestedDate).toLocaleDateString() : "Date pending"}<Clock3 size={13} className="ml-2" />{item.requestedTime || "Time pending"} · {item.status?.replaceAll("_", " ")}</p></div></div><Link to={`/doctor/consultations/${item._id}`} className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white">Open consultation</Link></article>)}</div> : <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center dark:border-slate-700 dark:bg-[#111820]"><Stethoscope className="mx-auto text-slate-300" /><p className="mt-3 font-bold text-slate-800 dark:text-white">No consultations assigned</p></section>}</div></main>;
+}
+
+function Planner() {
+  const { currentUser } = useAppContext();
+  return currentUser?.role === "doctor" ? <DoctorPlanner /> : <OwnerPlanner />;
 }
 
 export default Planner;

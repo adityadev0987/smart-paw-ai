@@ -24,7 +24,9 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ["owner", "doctor"], default: "owner", index: true },
     doctorProfile: {
       profilePhoto: { type: String, trim: true, default: "" },
+      clinicName: { type: String, trim: true, maxlength: 180, default: "" },
       qualification: { type: String, trim: true, default: "" },
+      registrationNumber: { type: String, trim: true, maxlength: 100, default: "" },
       specialization: [{ type: String, trim: true }],
       experience: { type: Number, min: 0, default: 0 },
       isApproved: { type: Boolean, default: false },

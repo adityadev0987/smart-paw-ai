@@ -23,6 +23,9 @@ import Register from "./pages/Register"
 import Notfound from "./pages/Notfound"
 import DoctorDashboard from "./pages/DoctorDashboard"
 import DoctorRegister from "./pages/DoctorRegister"
+import DoctorConsultationDetail from "./pages/DoctorConsultationDetail"
+import DoctorConsultationReport from "./pages/DoctorConsultationReport"
+import ConsultationReportView from "./pages/ConsultationReportView"
 
 function ProtectedRoute({ children }) {
   const location = useLocation()
@@ -36,8 +39,9 @@ function ProtectedRoute({ children }) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  if (currentUser?.role === "doctor" && !location.pathname.startsWith("/doctor")) return <Navigate to="/doctor/dashboard" replace />
-  if (currentUser?.role !== "doctor" && location.pathname.startsWith("/doctor/dashboard")) return <Navigate to="/dashboard" replace />
+  const doctorPath = location.pathname === "/doctor/dashboard" || location.pathname === "/planner" || /^\/doctor\/consultations\/[^/]+(?:\/report)?$/.test(location.pathname)
+  if (currentUser?.role === "doctor" && !doctorPath) return <Navigate to="/doctor/dashboard" replace />
+  if (currentUser?.role !== "doctor" && (location.pathname.startsWith("/doctor/dashboard") || location.pathname.startsWith("/doctor/consultations"))) return <Navigate to="/dashboard" replace />
 
   return children
 }
@@ -66,6 +70,9 @@ function AppContent() {
         />
         <Route path="/consultations" element={<ProtectedRoute><DoctorConsultation /></ProtectedRoute>} />
         <Route path="/doctor/dashboard" element={<ProtectedRoute><DoctorDashboard /></ProtectedRoute>} />
+        <Route path="/doctor/consultations/:consultationId" element={<ProtectedRoute><DoctorConsultationDetail /></ProtectedRoute>} />
+        <Route path="/doctor/consultations/:consultationId/report" element={<ProtectedRoute><DoctorConsultationReport /></ProtectedRoute>} />
+        <Route path="/consultations/:consultationId/report" element={<ProtectedRoute><ConsultationReportView /></ProtectedRoute>} />
         <Route path="/doctor/register" element={<DoctorRegister />} />
         <Route
           path="/planner"
