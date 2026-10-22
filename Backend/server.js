@@ -56,9 +56,6 @@ app.use(
   express.static(path.join(__dirname, "uploads"))
 );
 
-// Serve React frontend assets
-app.use(express.static(frontendDistPath));
-
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({
@@ -90,10 +87,14 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/community", communityRoutes);
 app.use("/api/uploads", uploadRoutes);
 
+// Serve React frontend assets after API routes.
+app.use(express.static(frontendDistPath));
+
 // React Router fallback
 app.use((req, res, next) => {
   if (
     req.method !== "GET" ||
+    req.path === "/api" ||
     req.path.startsWith("/api/") ||
     req.path.startsWith("/uploads/")
   ) {

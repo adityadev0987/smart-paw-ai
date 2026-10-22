@@ -25,14 +25,11 @@ import {
   X,
 } from "lucide-react";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-const API_ORIGIN = new URL(API_BASE_URL).origin;
+import { getMediaUrl } from "../services/api";
+
+const API_BASE_URL = "/api";
 const MAX_COMMUNITY_IMAGES = 5;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-
-function getMediaUrl(url) {
-  return url?.startsWith("http") || url?.startsWith("data:") ? url : `${API_ORIGIN}${url}`;
-}
 
 function getPetPhoto(pet) {
   if (pet?.profilePhoto) return pet.profilePhoto;

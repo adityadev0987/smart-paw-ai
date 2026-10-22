@@ -2,9 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Activity, CalendarDays, CheckCircle2, Clock3, ExternalLink, PawPrint, Stethoscope, UserRound } from "lucide-react";
 import { useAppContext } from "../hooks/useAppContext";
-import { getDoctorConsultations, updateDoctorConsultationStatus, updateDoctorPresence, updateDoctorProfile } from "../services/api";
+import { getDoctorConsultations, getMediaUrl, updateDoctorConsultationStatus, updateDoctorPresence, updateDoctorProfile } from "../services/api";
 
-const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || "http://localhost:5000";
 const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const statusStyle = { ASSIGNED: "bg-blue-50 text-blue-700", PENDING: "bg-blue-50 text-blue-700", ACCEPTED: "bg-amber-50 text-amber-700", IN_PROGRESS: "bg-emerald-50 text-emerald-700", COMPLETED: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300", CANCELLED: "bg-rose-50 text-rose-700" };
 const statusLabel = (status = "") => status.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -110,6 +109,6 @@ function ConsultationOverview({ consultation, busyAction }) {
 
 function PetAvatar({ pet = {}, large = false }) {
   const [failed, setFailed] = useState(false);
-  const photo = !failed && pet.profilePhoto ? (pet.profilePhoto.startsWith("http") ? pet.profilePhoto : `${API_ORIGIN}${pet.profilePhoto}`) : "";
+  const photo = !failed ? getMediaUrl(pet.profilePhoto) : "";
   return photo ? <img src={photo} onError={() => setFailed(true)} alt={pet.name || "Pet"} className={`${large ? "h-14 w-14" : "h-11 w-11"} shrink-0 rounded-xl object-cover`} /> : <div className={`${large ? "h-14 w-14" : "h-11 w-11"} flex shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600`}>{pet.name ? <PawPrint size={large ? 25 : 20} /> : <UserRound size={large ? 25 : 20} />}</div>;
 }

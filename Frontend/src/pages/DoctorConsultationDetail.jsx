@@ -2,11 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, CalendarDays, FileText, PawPrint, UserRound, X } from "lucide-react";
 import { connectConsultationSocket } from "../services/consultationSocket";
-import { getConsultationById, getConsultationMessages, getDoctorConsultations, sendConsultationMessage, sendConsultationMediaMessage, updateDoctorConsultationStatus } from "../services/api";
+import { getConsultationById, getConsultationMessages, getDoctorConsultations, getMediaUrl, sendConsultationMessage, sendConsultationMediaMessage, updateDoctorConsultationStatus } from "../services/api";
 import ConsultationMessageContent from "../components/ConsultationMessageContent";
 import ChatComposer from "../components/ChatComposer";
 
-const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || "http://localhost:5000";
 const statusStyle = { ASSIGNED: "bg-blue-50 text-blue-700", PENDING: "bg-blue-50 text-blue-700", ACCEPTED: "bg-amber-50 text-amber-700", IN_PROGRESS: "bg-emerald-50 text-emerald-700", COMPLETED: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300", CANCELLED: "bg-rose-50 text-rose-700" };
 const statusLabel = (status = "") => status.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 const dateLabel = (date) => date ? new Date(date).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : "Date pending";
@@ -98,6 +97,6 @@ export default function DoctorConsultationDetail() {
 
 function PetAvatar({ pet = {}, large = false }) {
   const [failed, setFailed] = useState(false);
-  const image = pet.profilePhoto ? (pet.profilePhoto.startsWith("http") ? pet.profilePhoto : `${API_ORIGIN}${pet.profilePhoto}`) : "";
+  const image = getMediaUrl(pet.profilePhoto);
   return image && !failed ? <img src={image} onError={() => setFailed(true)} alt={pet.name || "Pet"} className={`${large ? "h-14 w-14" : "h-11 w-11"} shrink-0 rounded-xl object-cover`} /> : <div className={`${large ? "h-14 w-14" : "h-11 w-11"} flex shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600`}>{pet.name ? <PawPrint size={large ? 25 : 20} /> : <UserRound size={large ? 25 : 20} />}</div>;
 }

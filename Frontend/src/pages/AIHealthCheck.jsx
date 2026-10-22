@@ -22,7 +22,7 @@ import ChatComposer from "../components/ChatComposer";
 import ConsultationMessageContent from "../components/ConsultationMessageContent";
 import { getAIHealthMediaUrl, uploadAIHealthMedia } from "../services/api";
 
-const API_BASE_URL = "http://localhost:5000";
+const API_BASE_URL = "/api";
 const HEALTH_CHECK_HISTORY_KEY = "smartPawHealthCheckHistory";
 const LATEST_HEALTH_CHECK_KEY = "smartPawLatestHealthCheck";
 
@@ -534,7 +534,7 @@ export default function AIHealthCheck() {
 
       const response =
         await fetch(
-          `${API_BASE_URL}/api/ai/health-check`,
+          `${API_BASE_URL}/ai/health-check`,
           {
             method: "POST",
 
@@ -720,7 +720,7 @@ export default function AIHealthCheck() {
 
         const response =
           await fetch(
-            `${API_BASE_URL}/api/ai/health-check`,
+            `${API_BASE_URL}/ai/health-check`,
             {
               method: "POST",
 

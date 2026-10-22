@@ -16,7 +16,7 @@ import {
   Stethoscope,
 } from "lucide-react";
 
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = "/api";
 
 function getAuthHeaders() {
   const token = localStorage.getItem("smartPawToken");

@@ -30,8 +30,9 @@ import {
 } from "../services/api";
 import ConsultationMessageContent from "../components/ConsultationMessageContent";
 import ChatComposer from "../components/ChatComposer";
+import { getMediaUrl } from "../services/api";
 
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = "/api";
 const MAX_PHOTOS = 5;
 const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
 const concernOptions = [
@@ -58,13 +59,6 @@ const initialConcern = {
 function getHeaders() {
   const token = localStorage.getItem("smartPawToken");
   return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-function imageUrl(url) {
-  if (!url) return "";
-  return url.startsWith("http") || url.startsWith("data:")
-    ? url
-    : `${API_BASE_URL.replace(/\/api$/, "")}${url}`;
 }
 
 function formatDate(value) {
@@ -793,7 +787,7 @@ function PetSelection({ pets, loading, selectedPetId, onSelect }) {
             <div className="flex h-36 items-center justify-center bg-orange-50 dark:bg-slate-900">
               {pet.profilePhoto ? (
                 <img
-                  src={imageUrl(pet.profilePhoto)}
+                  src={getMediaUrl(pet.profilePhoto)}
                   alt={pet.name}
                   className="h-full w-full object-contain"
                 />
@@ -829,7 +823,7 @@ function PetBanner({ pet }) {
       <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-white text-orange-500 dark:bg-slate-900">
         {pet.profilePhoto ? (
           <img
-            src={imageUrl(pet.profilePhoto)}
+            src={getMediaUrl(pet.profilePhoto)}
             alt={pet.name}
             className="h-full w-full object-contain"
           />
@@ -951,7 +945,7 @@ function PetAvatar({ pet, size = "h-12 w-12" }) {
     >
       {pet?.profilePhoto ? (
         <img
-          src={imageUrl(pet.profilePhoto)}
+          src={getMediaUrl(pet.profilePhoto)}
           alt={pet.name || "Pet"}
           className="h-full w-full object-contain"
         />
@@ -1236,7 +1230,7 @@ function PhotoGallery({ media }) {
             className="flex h-48 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900"
           >
             <img
-              src={imageUrl(url)}
+              src={getMediaUrl(url)}
               alt="Pet health concern"
               className="max-h-full max-w-full object-contain"
             />

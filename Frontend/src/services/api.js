@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = "/api";
 
 // --------------------------------------------------
 // Authentication helpers
@@ -214,10 +214,10 @@ export async function getCommunityPostsForPet(petId) {
   return Array.isArray(result?.posts) ? result.posts : [];
 }
 
-export function getCommunityMediaUrl(path) {
+export function getMediaUrl(path) {
   if (!path) return "";
-  if (/^https?:\/\//i.test(path)) return path;
-  return new URL(path, API_BASE_URL).toString();
+  if (/^(https?:|data:|blob:)/i.test(path)) return path;
+  return new URL(path, window.location.origin).toString();
 }
 
 // --------------------------------------------------

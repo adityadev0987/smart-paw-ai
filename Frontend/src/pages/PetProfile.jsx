@@ -22,7 +22,7 @@ import {
   createPet,
   updatePet as apiUpdatePet,
   deletePet as apiDeletePet,
-  getCommunityMediaUrl,
+  getMediaUrl,
   getCommunityPostsForPet,
   getConsultations,
 } from "../services/api";
@@ -1353,7 +1353,7 @@ function PetCommunityPosts({ pet }) {
                 {thumbnail ? (
                   <div className="flex aspect-square w-full items-center justify-center bg-zinc-100 dark:bg-[#111820]">
                     <img
-                      src={getCommunityMediaUrl(thumbnail)}
+                      src={getMediaUrl(thumbnail)}
                       alt={post.content || `${pet?.name || "Pet"} community post`}
                       loading="lazy"
                       className="h-full w-full object-contain"
@@ -2091,7 +2091,7 @@ export default function PetProfile() {
         // Ignore photo storage errors.
       }
 
-      fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/pets/${petKey}/photo`, {
+      fetch(`/api/pets/${petKey}/photo`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

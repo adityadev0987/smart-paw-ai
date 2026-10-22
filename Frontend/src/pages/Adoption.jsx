@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { HeartHandshake, PawPrint, Plus, X } from "lucide-react";
 import { useAppContext } from "../hooks/useAppContext";
+import { getMediaUrl } from "../services/api";
 
-const API = `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}`;
-const ORIGIN = new URL(API).origin;
+const API = "/api";
 const auth = () => ({ Authorization: `Bearer ${localStorage.getItem("smartPawToken") || ""}` });
 async function request(url, options = {}) {
   const response = await fetch(url, { ...options, headers: { ...auth(), ...(options.headers || {}) } });
@@ -11,7 +11,7 @@ async function request(url, options = {}) {
   if (!response.ok) throw new Error(data.message || "Request failed.");
   return data;
 }
-const photoUrl = (url) => url?.startsWith("http") || url?.startsWith("data:") ? url : `${ORIGIN}${url || ""}`;
+const photoUrl = (url) => url ? getMediaUrl(url) : "";
 const emptyForm = { about: "", reason: "", location: "", contact: "", temperament: "", healthInfo: "", requirements: "" };
 
 export default function Adoption({ embedded = false }) {
