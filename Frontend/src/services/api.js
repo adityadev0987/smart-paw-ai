@@ -507,6 +507,26 @@ export const submitDoctorConsultationReport = (id, report) => consultationReques
 export const updateDoctorConsultationNotes = (id, notes) => consultationRequest(`/doctor/consultations/${encodeURIComponent(id)}/notes`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(notes) });
 export const getConsultationMessages = (id) => consultationRequest(`/consultations/${encodeURIComponent(id)}/messages`);
 export const sendConsultationMessage = (id, message) => consultationRequest(`/consultations/${encodeURIComponent(id)}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) });
+export async function sendConsultationMediaMessage(id, file, messageType, mediaDuration, message = "") {
+  const body = new FormData(); body.append("media", file); body.append("messageType", messageType); body.append("mediaDuration", String(mediaDuration || "")); body.append("message", message);
+  const response = await fetch(`${API_BASE_URL}/consultations/${encodeURIComponent(id)}/messages`, { method: "POST", headers: getAuthHeaders(), body });
+  return parseResponse(response);
+}
+export async function getConsultationMediaUrl(id, mediaUrl) {
+  const response = await fetch(`${API_BASE_URL}${mediaUrl}`, { headers: getAuthHeaders() });
+  if (!response.ok) throw new Error("Unable to load this consultation media.");
+  return URL.createObjectURL(await response.blob());
+}
+export async function uploadAIHealthMedia(file) {
+  const body = new FormData(); body.append("media", file);
+  const response = await fetch(`${API_BASE_URL}/ai/health-check/media`, { method: "POST", headers: getAuthHeaders(), body });
+  return parseResponse(response);
+}
+export async function getAIHealthMediaUrl(mediaUrl) {
+  const response = await fetch(`${API_BASE_URL}${mediaUrl}`, { headers: getAuthHeaders() });
+  if (!response.ok) throw new Error("Unable to load this health check media.");
+  return URL.createObjectURL(await response.blob());
+}
 export const updateDoctorPresence = (isOnline) => consultationRequest("/doctor/presence", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isOnline }) });
 export const updateDoctorProfile = (profile) => consultationRequest("/auth/doctors/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(profile) });
 export async function registerDoctorAccount(profile) {

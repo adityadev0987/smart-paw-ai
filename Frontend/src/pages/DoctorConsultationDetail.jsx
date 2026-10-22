@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarDays, FileText, PawPrint, Send, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, FileText, PawPrint, UserRound, X } from "lucide-react";
 import { connectConsultationSocket } from "../services/consultationSocket";
-import { getConsultationById, getConsultationMessages, getDoctorConsultations, sendConsultationMessage, updateDoctorConsultationStatus } from "../services/api";
+import { getConsultationById, getConsultationMessages, getDoctorConsultations, sendConsultationMessage, sendConsultationMediaMessage, updateDoctorConsultationStatus } from "../services/api";
+import ConsultationMessageContent from "../components/ConsultationMessageContent";
+import ChatComposer from "../components/ChatComposer";
 
 const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || "http://localhost:5000";
 const statusStyle = { ASSIGNED: "bg-blue-50 text-blue-700", PENDING: "bg-blue-50 text-blue-700", ACCEPTED: "bg-amber-50 text-amber-700", IN_PROGRESS: "bg-emerald-50 text-emerald-700", COMPLETED: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300", CANCELLED: "bg-rose-50 text-rose-700" };
@@ -15,6 +17,7 @@ export default function DoctorConsultationDetail() {
   const [consultation, setConsultation] = useState(null);
   const [history, setHistory] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [lightbox, setLightbox] = useState("");
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -55,15 +58,13 @@ export default function DoctorConsultationDetail() {
     catch (err) { setError(err.message || "Unable to update consultation status."); }
     finally { setBusy(false); }
   };
-  const sendMessage = async (event) => {
-    event.preventDefault();
-    if (!draft.trim()) return;
+  const sendMessage = async (text, attachment) => {
     setBusy(true); setError("");
     try {
-      const result = await sendConsultationMessage(consultationId, draft.trim());
-      setMessages((current) => current.some((item) => item._id === result.message._id) ? current : [...current, result.message]);
+      const result = attachment ? await sendConsultationMediaMessage(consultationId, attachment.file, attachment.type, attachment.duration, text) : await sendConsultationMessage(consultationId, text);
+      setMessages((current) => current.some((item) => item._id === result.message._id) ? current : [...current, result.message].sort((a,b) => new Date(a.createdAt)-new Date(b.createdAt)));
       setDraft("");
-    } catch (err) { setError(err.message || "Unable to send your message."); }
+    } catch (err) { setError(err.message || "Unable to send your message."); throw err; }
     finally { setBusy(false); }
   };
 
@@ -86,9 +87,9 @@ export default function DoctorConsultationDetail() {
           <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4 dark:border-slate-800 sm:px-6"><div className="flex min-w-0 items-center gap-3"><PetAvatar pet={pet} large /><div className="min-w-0"><h2 className="truncate text-lg font-black">{pet.name || "Pet"} <span className="font-medium text-slate-400">· {pet.species || "Pet"}{pet.breed ? ` / ${pet.breed}` : ""}</span></h2><p className="truncate text-xs text-slate-500 dark:text-slate-400">Owner {consultation.userId?.name || "—"} · {dateLabel(consultation.requestedDate)} at {consultation.requestedTime || "time pending"}</p></div></div><span className={`rounded-full px-3 py-1.5 text-xs font-bold ${statusStyle[consultation.status] || statusStyle.PENDING}`}>{statusLabel(consultation.status)}</span></header>
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/30 sm:px-6"><div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400"><CalendarDays size={14} /> Consultation {dateLabel(consultation.requestedDate)} · {consultation.requestedTime}</div><div className="flex flex-wrap gap-2">{["ASSIGNED", "PENDING"].includes(consultation.status) && <button disabled={busy} onClick={() => updateStatus("ACCEPTED")} className="rounded-lg border border-orange-200 px-3 py-1.5 text-xs font-bold text-orange-700">Accept</button>}{consultation.status === "ACCEPTED" && <button disabled={busy} onClick={() => updateStatus("IN_PROGRESS")} className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-bold text-white">Start consultation</button>}{doctorCanChat && <button onClick={() => navigate(`/doctor/consultations/${consultationId}/report`)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold dark:border-slate-700">End consultation</button>}{["IN_PROGRESS", "COMPLETED"].includes(consultation.status) && (consultation.report?.submittedAt ? <Link to={`/doctor/consultations/${consultationId}/report`} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white">View final report</Link> : <Link to={`/doctor/consultations/${consultationId}/report`} className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-bold text-emerald-700">Final report</Link>)}</div></div>
 
-          <div className="flex-1 space-y-3 overflow-y-auto bg-[#f8fafc] p-4 dark:bg-[#0d131a] sm:px-6">{messages.length ? messages.map((message) => <article key={message._id} className={`flex ${message.senderRole === "doctor" ? "justify-end" : "justify-start"}`}><div className={`max-w-[min(82%,680px)] rounded-2xl px-4 py-3 shadow-sm ${message.senderRole === "doctor" ? "rounded-br-md bg-orange-500 text-white" : "rounded-bl-md border border-slate-100 bg-white text-slate-800 dark:border-slate-800 dark:bg-[#18212b] dark:text-slate-100"}`}><p className="whitespace-pre-wrap text-sm leading-6">{message.message}</p><p className={`mt-1.5 text-[10px] ${message.senderRole === "doctor" ? "text-orange-100" : "text-slate-400"}`}>{message.senderId?.name || (message.senderRole === "doctor" ? "Doctor" : "Pet owner")} · {new Date(message.createdAt).toLocaleString()}</p></div></article>) : <div className="grid min-h-64 place-items-center"><p className="text-center text-sm text-slate-400">{doctorCanChat ? "No messages yet. Send the first message to start the conversation." : "The chat becomes available when the consultation is started."}</p></div>}</div>
+          <div className="flex-1 space-y-3 overflow-y-auto bg-[#f8fafc] p-4 dark:bg-[#0d131a] sm:px-6">{messages.length ? messages.map((message) => <article key={message._id} className={`flex ${message.senderRole === "doctor" ? "justify-end" : "justify-start"}`}><div className={`max-w-[min(82%,680px)] overflow-hidden rounded-2xl px-4 py-3 shadow-sm ${message.senderRole === "doctor" ? "rounded-br-md bg-orange-500 text-white" : "rounded-bl-md border border-slate-100 bg-white text-slate-800 dark:border-slate-800 dark:bg-[#18212b] dark:text-slate-100"}`}><ConsultationMessageContent consultationId={consultationId} message={message} onPreview={setLightbox} /><p className={`mt-1.5 text-[10px] ${message.senderRole === "doctor" ? "text-orange-100" : "text-slate-400"}`}>{message.senderId?.name || (message.senderRole === "doctor" ? "Doctor" : "Pet owner")} · {new Date(message.createdAt).toLocaleString()}</p></div></article>) : <div className="grid min-h-64 place-items-center"><p className="text-center text-sm text-slate-400">{doctorCanChat ? "No messages yet. Send the first message to start the conversation." : "The chat becomes available when the consultation is started."}</p></div>}</div>
 
-          <footer className="border-t border-slate-100 p-4 dark:border-slate-800 sm:px-6">{doctorCanChat ? <form onSubmit={sendMessage} className="flex items-end gap-2"><textarea rows="2" maxLength={4000} value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Write a message to the pet owner…" className="min-h-12 min-w-0 flex-1 resize-y rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-orange-400 dark:border-slate-700 dark:bg-[#0d131a]" /><button disabled={busy || !draft.trim()} className="inline-flex h-12 shrink-0 items-center gap-2 rounded-xl bg-orange-500 px-4 text-sm font-bold text-white disabled:opacity-50"><Send size={16} /> Send</button></form> : <p className="text-center text-xs text-slate-500">{consultation.status === "COMPLETED" ? "This consultation is complete. Its chat history remains available." : "Accept and start this consultation to enable chat."}</p>}</footer>
+          <footer className="border-t border-slate-100 p-4 dark:border-slate-800 sm:px-6">{doctorCanChat ? <ChatComposer draft={draft} setDraft={setDraft} onSend={sendMessage} busy={busy} multiline placeholder="Write a message to the pet owner…" /> : <p className="text-center text-xs text-slate-500">{consultation.status === "COMPLETED" ? "This consultation is complete. Its chat history remains available." : "Accept and start this consultation to enable chat."}</p>}{lightbox&&<div role="dialog" aria-modal="true" onClick={()=>setLightbox("")} className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-4"><button className="absolute right-4 top-4 text-white" aria-label="Close image"><X/></button><img src={lightbox} alt="Full consultation attachment" className="max-h-full max-w-full object-contain"/></div>}</footer>
         </section>
       </div>
     </div>

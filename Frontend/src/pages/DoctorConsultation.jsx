@@ -10,6 +10,7 @@ import {
   HeartPulse,
   ImagePlus,
   Loader2,
+  X,
   PawPrint,
   ShieldCheck,
   Stethoscope,
@@ -23,9 +24,12 @@ import {
   getConsultationMessages,
   getConsultationById,
   sendConsultationMessage,
+  sendConsultationMediaMessage,
   cancelConsultation,
   rescheduleConsultation,
 } from "../services/api";
+import ConsultationMessageContent from "../components/ConsultationMessageContent";
+import ChatComposer from "../components/ChatComposer";
 
 const API_BASE_URL = "http://localhost:5000/api";
 const MAX_PHOTOS = 5;
@@ -1147,18 +1151,6 @@ function ConsultationDetails({ consultation, onBook, onReschedule, onUpdated, on
           </dl>
         </section>
       )}
-      {consultation.veterinarianId && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-[#0d131a]">
-          <h3 className="font-black">Assigned veterinarian</h3>
-          <p className="mt-2 text-sm font-semibold">{consultation.veterinarianId?.name} · {consultation.veterinarianId?.doctorProfile?.qualification || "Veterinarian"}</p>
-          <p className="mt-1 text-xs text-slate-500">{consultation.veterinarianId?.doctorProfile?.isOnline ? "Online now" : "Offline · will respond in your scheduled consultation"}</p>
-          {consultation.veterinarianId?.doctorProfile?.specialization?.length > 0 && <p className="mt-1 text-xs text-slate-500">{consultation.veterinarianId.doctorProfile.specialization.join(" · ")}</p>}
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {[['Clinical observations', consultation.clinicalObservations], ['Advice', consultation.doctorAdvice || consultation.recommendations], ['Recommended care', consultation.recommendedCare], ['Follow-up instructions', consultation.followUpInstructions], ['Medication information', consultation.medicationInformation], ['Additional notes', consultation.doctorNotes]].filter(([, value]) => value).map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 whitespace-pre-wrap text-sm">{value}</p></div>)}
-          </div>
-          {!consultation.doctorAdvice && !consultation.doctorNotes && <p className="mt-2 text-sm text-slate-500">Veterinarian notes will appear here when saved.</p>}
-        </section>
-      )}
       {(consultation.report?.submittedAt || consultation.status === "COMPLETED") && (
         <section className="rounded-2xl border border-emerald-200 bg-white p-5 dark:border-emerald-900 dark:bg-[#0d131a]">
           <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black uppercase tracking-widest text-emerald-600">Final consultation report</p><h3 className="mt-1 text-lg font-black">Dr. {consultation.veterinarianId?.name || "Veterinarian"} · {pet.name || "Pet"}</h3></div><p className="text-xs text-slate-500">{formatDate(consultation.requestedDate)}</p></div>
@@ -1183,11 +1175,12 @@ function ConsultationDetails({ consultation, onBook, onReschedule, onUpdated, on
 }
 
 function OwnerConsultationChat({ consultation, onUpdated }) {
+  const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const chatContainerRef = useRef(null);
+  const [lightbox, setLightbox] = useState("");
   const refreshMessages = useCallback(async () => {
     try { const result = await getConsultationMessages(consultation._id); setMessages(result.messages || []); }
     catch (loadError) { setError(loadError.message || "Unable to load consultation chat."); }
@@ -1202,19 +1195,34 @@ function OwnerConsultationChat({ consultation, onUpdated }) {
     return () => { window.clearTimeout(loadTimer); window.clearInterval(poll); };
   }, [consultation._id, refreshMessages, refreshConsultation]);
   useEffect(() => {
-    // Keep the conversation scrolled within its own panel; scrollIntoView on
-    // the last message also moves the entire history page to the bottom.
-    const chatContainer = chatContainerRef.current;
-    if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
-  }, [messages]);
-  const send = async (event) => {
-    event.preventDefault(); if (!draft.trim()) return;
+    if (!isOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event) => { if (event.key === "Escape") setIsOpen(false); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", closeOnEscape); };
+  }, [isOpen]);
+  const send = async (text, attachment) => {
     setSending(true); setError("");
-    try { const result = await sendConsultationMessage(consultation._id, draft.trim()); setMessages((current) => current.some((item) => item._id === result.message._id) ? current : [...current, result.message]); setDraft(""); }
-    catch (sendError) { setError(sendError.message || "Unable to send your message."); }
+    try { const result = attachment ? await sendConsultationMediaMessage(consultation._id, attachment.file, attachment.type, attachment.duration, text) : await sendConsultationMessage(consultation._id, text); setMessages((current) => current.some((item) => item._id === result.message._id) ? current : [...current, result.message].sort((a,b) => new Date(a.createdAt)-new Date(b.createdAt))); setDraft(""); }
+    catch (sendError) { setError(sendError.message || "Unable to send your message."); throw sendError; }
     finally { setSending(false); }
   };
-  return <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-[#0d131a]"><h3 className="font-black">Chat with your veterinarian</h3><div ref={chatContainerRef} className="mt-3 max-h-80 space-y-2 overflow-y-auto rounded-xl bg-slate-50 p-3 dark:bg-slate-900">{messages.length ? messages.map((message) => <div key={message._id} className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm ${message.senderRole === "owner" ? "ml-auto bg-orange-500 text-white" : "bg-white text-slate-700 shadow-sm"}`}><p>{message.message}</p><p className={`mt-1 text-[10px] ${message.senderRole === "owner" ? "text-orange-100" : "text-slate-400"}`}>{message.senderId?.name} · {new Date(message.createdAt).toLocaleString()}</p></div>) : <p className="py-10 text-center text-sm text-slate-400">No messages yet. Your veterinarian can start the chat at the scheduled consultation.</p>}</div>{error && <p role="alert" className="mt-2 text-xs text-red-600">{error}</p>}{consultation.status === "IN_PROGRESS" ? <form onSubmit={send} className="mt-3 flex gap-2"><input value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={4000} placeholder="Message your veterinarian…" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400" /><button disabled={sending || !draft.trim()} className="rounded-xl bg-orange-500 px-4 text-sm font-bold text-white disabled:opacity-50">{sending ? "Sending…" : "Send"}</button></form> : consultation.status !== "COMPLETED" && consultation.status !== "CANCELLED" ? <p className="mt-3 text-xs text-slate-500">Chat opens when your veterinarian starts the consultation.</p> : <p className="mt-3 text-xs text-slate-500">This consultation chat is closed. Your report remains available above after submission.</p>}</section>;
+  const canSend = consultation.status === "IN_PROGRESS";
+  const messagesView = <div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-xl bg-slate-50 p-3 dark:bg-slate-900">{messages.length ? messages.map((message) => <div key={message._id} className={`max-w-[88%] overflow-hidden rounded-2xl px-3 py-2 text-sm ${message.senderRole === "owner" ? "ml-auto bg-orange-500 text-white" : "bg-white text-slate-700 shadow-sm dark:bg-slate-800 dark:text-slate-100"}`}><ConsultationMessageContent consultationId={consultation._id} message={message} onPreview={setLightbox} /><p className={`mt-1 text-[10px] ${message.senderRole === "owner" ? "text-orange-100" : "text-slate-400"}`}>{message.senderId?.name} · {new Date(message.createdAt).toLocaleString()}</p></div>) : <p className="py-10 text-center text-sm text-slate-400">No messages yet. Your veterinarian can start the chat at the scheduled consultation.</p>}</div>;
+  return <>
+    <section className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-[#0d131a]">
+      <div><h3 className="font-black">Chat with your veterinarian</h3><p className="mt-1 text-sm text-slate-500">{messages.length ? `${messages.length} message${messages.length === 1 ? "" : "s"}` : "Open your consultation conversation"}</p></div>
+      <button type="button" onClick={() => setIsOpen(true)} className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-bold text-white">Open chat</button>
+    </section>
+    {isOpen && <div className="fixed inset-0 z-[100] flex h-[100dvh] flex-col bg-white p-3 dark:bg-[#0d131a] sm:p-6" role="dialog" aria-modal="true" aria-label="Chat with your veterinarian">
+      <header className="mb-3 flex shrink-0 items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800"><div><h2 className="text-lg font-black">Chat with your veterinarian</h2><p className="text-xs text-slate-500">{consultation.petId?.name || "Pet"} · {statusLabel(consultation.status)}</p></div><button type="button" onClick={() => setIsOpen(false)} aria-label="Close chat" className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold dark:border-slate-700">Close</button></header>
+      {messagesView}
+      {error && <p role="alert" className="mt-2 shrink-0 text-xs text-red-600">{error}</p>}
+      {canSend ? <div className="mt-3 shrink-0 border-t border-slate-200 pt-3 dark:border-slate-800"><ChatComposer draft={draft} setDraft={setDraft} onSend={send} busy={sending} placeholder="Message your veterinarian…" /></div> : <p className="mt-3 shrink-0 border-t border-slate-200 pt-3 text-sm text-slate-500 dark:border-slate-800">{consultation.status === "COMPLETED" || consultation.status === "CANCELLED" ? "This consultation chat is closed. Messages are available to review." : "Chat opens when your veterinarian starts the consultation."}</p>}
+      {lightbox && <div role="dialog" aria-modal="true" onClick={()=>setLightbox("")} className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-4"><button className="absolute right-4 top-4 text-white" aria-label="Close image"><X/></button><img src={lightbox} alt="Full consultation attachment" className="max-h-full max-w-full object-contain"/></div>}
+    </div>}
+  </>;
 }
 
 function PhotoGallery({ media }) {

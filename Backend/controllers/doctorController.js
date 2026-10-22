@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
+import fs from "node:fs";
 import Consultation from "../models/Consultation.js";
 import ConsultationMessage from "../models/ConsultationMessage.js";
 import HealthRecord from "../models/HealthRecord.js";
@@ -10,6 +11,7 @@ import Task from "../models/Task.js";
 import User from "../models/User.js";
 import { notifyUser } from "../services/notifications.js";
 import { createConsultationReportPdf } from "../services/consultationReportPdf.js";
+import { sniffMedia } from "../middleware/consultationMediaUpload.js";
 
 const populatedConsultation = (query) =>
   query
@@ -202,12 +204,17 @@ export async function sendMessage(req, res) {
   try {
     const consultation = await authorizedConsultation(req, res);
     if (!consultation) return;
-    if (consultation.status !== "IN_PROGRESS")
+    if (consultation.status !== "IN_PROGRESS") {
+      if (req.file) await rm(req.file.path, { force: true });
       return res
         .status(409)
         .json({ success: false, message: "This consultation chat is closed." });
+    }
     const messageText = String(req.body.message || "").trim();
-    if (!messageText || messageText.length > 4000)
+    const file = req.file;
+    const messageType = file ? String(req.body.messageType || "") : "text";
+    if (file && !["image", "audio"].includes(messageType)) { await rm(file.path, { force: true }); return res.status(400).json({ success: false, message: "Choose an image or audio message." }); }
+    if (!file && (!messageText || messageText.length > 4000))
       return res
         .status(400)
         .json({
@@ -217,12 +224,30 @@ export async function sendMessage(req, res) {
     const isFirstDoctorMessage = req.user.role === "doctor"
       ? (await ConsultationMessage.countDocuments({ consultationId: consultation._id, senderRole: "doctor" })) === 0
       : false;
+    const detectedMime = file ? sniffMedia(fs.readFileSync(file.path).subarray(0, 32)) : "";
+    const imageMime = ["image/jpeg", "image/png", "image/webp"];
+    const audioMime = ["audio/webm", "audio/ogg", "audio/wav", "audio/mp4", "audio/mpeg"];
+    if (file && (!detectedMime || (messageType === "image" ? !imageMime.includes(detectedMime) : !audioMime.includes(detectedMime)))) {
+      await rm(file.path, { force: true });
+      return res.status(400).json({ success: false, message: "The uploaded file does not match a supported media format." });
+    }
+    const duration = file && messageType === "audio" ? Number(req.body.mediaDuration) : null;
+    if (messageType === "audio" && (!Number.isFinite(duration) || duration <= 0 || duration > 600)) { await rm(file.path, { force: true }); return res.status(400).json({ success: false, message: "Audio must be 10 minutes or shorter." }); }
     const message = await ConsultationMessage.create({
       consultationId: consultation._id,
       senderId: req.user.id,
       senderRole: req.user.role,
       message: messageText,
+      messageType,
+      mediaUrl: file ? `/consultations/${consultation._id}/messages/${"pending"}/media` : "",
+      mediaMimeType: detectedMime,
+      mediaDuration: duration,
+      mediaStoragePath: file ? path.relative(path.join(process.cwd(), "uploads"), file.path) : "",
     });
+    if (file) {
+      message.mediaUrl = `/consultations/${consultation._id}/messages/${message._id}/media`;
+      await message.save();
+    }
     const populated = await ConsultationMessage.findById(message._id)
       .populate("senderId", "name role doctorProfile.profilePhoto")
       .lean();
@@ -246,11 +271,27 @@ export async function sendMessage(req, res) {
       );
     return res.status(201).json({ success: true, message: populated });
   } catch (error) {
+    if (req.file?.path) await rm(req.file.path, { force: true }).catch(() => {});
     console.error("Consultation message error:", error);
     return res
       .status(500)
       .json({ success: false, message: "Unable to send message." });
   }
+}
+
+export async function getConsultationMessageMedia(req, res) {
+  try {
+    const consultation = await authorizedConsultation(req, res);
+    if (!consultation) return;
+    const message = await ConsultationMessage.findOne({ _id: req.params.messageId, consultationId: consultation._id }).select("+mediaStoragePath mediaMimeType messageType");
+    if (!message?.mediaStoragePath) return res.status(404).json({ success: false, message: "Media not found." });
+    const uploadsRoot = path.resolve(process.cwd(), "uploads");
+    const mediaPath = path.resolve(uploadsRoot, message.mediaStoragePath);
+    if (!mediaPath.startsWith(`${uploadsRoot}${path.sep}`)) return res.status(400).json({ success: false, message: "Invalid media path." });
+    res.setHeader("Content-Type", message.mediaMimeType);
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.sendFile(mediaPath, (error) => { if (error && !res.headersSent) res.status(error.statusCode || 404).end(); });
+  } catch (error) { console.error("Consultation media read error:", error); return res.status(500).json({ success: false, message: "Unable to load consultation media." }); }
 }
 
 export async function submitConsultationReport(req, res) {

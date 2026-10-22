@@ -14,9 +14,13 @@ import {
   ShieldCheck,
   Sparkles,
   User,
+  X,
   Trash2,
 } from "lucide-react";
 import { useAppContext } from "../hooks/useAppContext";
+import ChatComposer from "../components/ChatComposer";
+import ConsultationMessageContent from "../components/ConsultationMessageContent";
+import { getAIHealthMediaUrl, uploadAIHealthMedia } from "../services/api";
 
 const API_BASE_URL = "http://localhost:5000";
 const HEALTH_CHECK_HISTORY_KEY = "smartPawHealthCheckHistory";
@@ -87,6 +91,7 @@ export default function AIHealthCheck() {
 
   const chatRef = useRef(null);
   const composerRef = useRef(null);
+  const [lightbox, setLightbox] = useState("");
 
   /* ==========================================
      PET SYNC
@@ -662,18 +667,16 @@ export default function AIHealthCheck() {
   ========================================== */
 
   const submitFollowUpAnswer =
-    async (event) => {
-      event.preventDefault();
-
-      if (
-        !answer.trim() ||
-        answerLoading
-      ) {
+    async (text, attachment) => {
+      if ((!text.trim() && !attachment) || answerLoading) {
         return;
       }
 
-      const currentAnswer =
-        answer.trim();
+      let uploadedMedia = null;
+      if (attachment) uploadedMedia = await uploadAIHealthMedia(attachment.file);
+      const currentAnswer = text.trim() || (attachment.type === "image"
+        ? "I shared a pet health photo. Please note that this AI health check currently saves photos with the conversation but cannot analyze image contents."
+        : "I shared a voice message. Audio transcription is not available yet; please ask me to describe the symptoms in text.");
 
       const updatedConversation =
         [
@@ -683,6 +686,7 @@ export default function AIHealthCheck() {
             role: "user",
             content:
               currentAnswer,
+            ...(attachment ? { messageType: attachment.type, mediaUrl: uploadedMedia.mediaUrl, mediaMimeType: uploadedMedia.mediaMimeType, mediaDuration: attachment.duration || null } : {}),
           },
         ];
       const sessionId =
@@ -708,8 +712,6 @@ export default function AIHealthCheck() {
           sessionConversation: updatedConversation,
           sessionAssessment: assessment,
         });
-
-        setAnswer("");
 
         const token =
           localStorage.getItem(
@@ -740,8 +742,7 @@ export default function AIHealthCheck() {
                 symptoms:
                   symptoms.trim(),
 
-                conversation:
-                  updatedConversation,
+                conversation: updatedConversation.map(({ role, content }) => ({ role, content })),
               }),
             },
           );
@@ -758,6 +759,7 @@ export default function AIHealthCheck() {
 
         const data =
           result.data || result;
+        setAnswer("");
 
         /* FOLLOW UP */
 
@@ -825,6 +827,8 @@ export default function AIHealthCheck() {
           err.message ||
             "Something went wrong. Please try again.",
         );
+        setAnswer(text);
+        throw err;
       } finally {
         setAnswerLoading(false);
       }
@@ -1528,15 +1532,14 @@ export default function AIHealthCheck() {
                             )}
 
                             <div
-                              className={`max-w-[85%] text-sm leading-6 sm:max-w-[75%] ${
+                              className={`max-w-[85%] min-w-0 overflow-hidden text-sm leading-6 sm:max-w-[75%] ${
                                 isUser
                                   ? "rounded-2xl rounded-br-md bg-orange-500 px-4 py-3 text-white"
                                   : "rounded-2xl rounded-bl-md bg-slate-50 px-4 py-3 text-slate-700 dark:bg-[#18212b] dark:text-slate-200"
                               }`}
                             >
-                              {
-                                message.content
-                              }
+                              {message.messageType ? <ConsultationMessageContent message={message} mediaLoader={getAIHealthMediaUrl} onPreview={setLightbox} /> : message.content}
+                              {message.messageType && <p className="mt-2 text-[10px] leading-4 opacity-70">{message.messageType === "image" ? "Photo saved with this chat. Current AI checks text only." : "Voice message saved. Transcription is not available yet."}</p>}
                             </div>
 
                             {isUser && (
@@ -1784,74 +1787,10 @@ export default function AIHealthCheck() {
                     COMPOSER
                 ================================== */}
 
-                <form
-                  onSubmit={
-                    submitFollowUpAnswer
-                  }
-                  className="shrink-0 border-t border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-[#111820] sm:p-4"
-                >
+                <div className="shrink-0 border-t border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-[#111820] sm:p-4">
 
-                  <div className="mx-auto flex w-full max-w-3xl items-end gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2 transition focus-within:border-orange-400 focus-within:ring-4 focus-within:ring-orange-500/10 dark:border-slate-700 dark:bg-[#18212b]">
-
-                    <textarea
-                      ref={
-                        composerRef
-                      }
-                      value={answer}
-                      onChange={(e) =>
-                        setAnswer(
-                          e.target.value,
-                        )
-                      }
-                      onKeyDown={(e) => {
-                        if (
-                          e.key ===
-                            "Enter" &&
-                          !e.shiftKey
-                        ) {
-                          e.preventDefault();
-
-                          if (
-                            answer.trim() &&
-                            !answerLoading
-                          ) {
-                            e.currentTarget.form?.requestSubmit();
-                          }
-                        }
-                      }}
-                      rows={1}
-                      placeholder={
-                        assessment
-                          ? "Ask anything about this assessment..."
-                          : "Answer the AI's question..."
-                      }
-                      disabled={
-                        !hasStarted ||
-                        answerLoading
-                      }
-                      className="max-h-32 min-h-[44px] flex-1 resize-none bg-transparent px-2.5 py-2.5 text-sm leading-6 outline-none placeholder:text-slate-400 disabled:opacity-60 dark:placeholder:text-slate-500"
-                    />
-
-                    <button
-                      type="submit"
-                      disabled={
-                        !hasStarted ||
-                        answerLoading ||
-                        !answer.trim()
-                      }
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="Send message"
-                    >
-                      {answerLoading ? (
-                        <Loader2
-                          size={18}
-                          className="animate-spin"
-                        />
-                      ) : (
-                        <Send size={18} />
-                      )}
-                    </button>
-
+                  <div className="mx-auto w-full max-w-3xl">
+                    <ChatComposer draft={answer} setDraft={setAnswer} onSend={submitFollowUpAnswer} disabled={!hasStarted} busy={answerLoading} multiline inputRef={composerRef} placeholder={assessment ? "Ask anything about this assessment..." : "Answer the AI's question..."} />
                   </div>
 
                   <p className="mx-auto mt-2 max-w-3xl text-center text-[9px] text-slate-400">
@@ -1859,7 +1798,8 @@ export default function AIHealthCheck() {
                     for a new line
                   </p>
 
-                </form>
+                </div>
+                {lightbox && <div role="dialog" aria-modal="true" aria-label="Expanded health photo" onClick={() => setLightbox("")} className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-4"><button className="absolute right-4 top-4 rounded-lg p-2 text-white" aria-label="Close image"><X/></button><img src={lightbox} alt="Expanded pet health photo" className="max-h-full max-w-full object-contain"/></div>}
 
               </div>
             )}

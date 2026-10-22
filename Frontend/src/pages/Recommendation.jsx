@@ -14,15 +14,23 @@ import {
   Sparkles,
   Stethoscope,
   Target,
+  Trash2,
 } from "lucide-react";
 import { useAppContext } from "../hooks/useAppContext";
 
 const HEALTH_CHECK_STORAGE_KEY = "smartPawLatestHealthCheck";
+const DISMISSED_RECOMMENDATIONS_KEY = "smartPawDismissedRecommendations";
 
 function getHealthCheckStorageKey(userId) {
   return userId
     ? `${HEALTH_CHECK_STORAGE_KEY}:${userId}`
     : null;
+}
+
+function getRecommendationKey(recommendation) {
+  return [recommendation.category, recommendation.title, recommendation.description, recommendation.action]
+    .map((value) => String(value || "").trim().toLowerCase())
+    .join("|");
 }
 
 function Recommendation() {
@@ -42,8 +50,37 @@ function Recommendation() {
 
   const [latestHealthCheck, setLatestHealthCheck] =
     useState(null);
+  const [dismissedRecommendations, setDismissedRecommendations] =
+    useState([]);
 
   const categoryDropdownRef = useRef(null);
+
+  const dismissedStorageKey = currentUser && currentPet
+    ? `${DISMISSED_RECOMMENDATIONS_KEY}:${currentUser._id || currentUser.id || "user"}:${currentPet._id || currentPet.id || "pet"}`
+    : null;
+
+  useEffect(() => {
+    if (!dismissedStorageKey) {
+      setDismissedRecommendations([]);
+      return;
+    }
+    try {
+      const saved = JSON.parse(localStorage.getItem(dismissedStorageKey) || "[]");
+      setDismissedRecommendations(Array.isArray(saved) ? saved : []);
+    } catch {
+      setDismissedRecommendations([]);
+    }
+  }, [dismissedStorageKey]);
+
+  const dismissRecommendation = (recommendation) => {
+    if (!dismissedStorageKey) return;
+    const key = getRecommendationKey(recommendation);
+    setDismissedRecommendations((previous) => {
+      const updated = previous.includes(key) ? previous : [...previous, key];
+      localStorage.setItem(dismissedStorageKey, JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   useEffect(() => {
     const loadLatestHealthCheck = () => {
@@ -223,7 +260,7 @@ function Recommendation() {
             healthCheckNextSteps.length > 0
               ? healthCheckNextSteps[0]
               : "Seek veterinary care promptly and do not rely on home monitoring alone.",
-          source: "Latest AI Health Check",
+          source: "",
           icon: AlertTriangle,
         });
       } else {
@@ -238,7 +275,7 @@ function Recommendation() {
             healthCheckNextSteps.length > 0
               ? healthCheckNextSteps[0]
               : "Continue monitoring the reported symptoms and seek veterinary advice if they persist or worsen.",
-          source: "Latest AI Health Check",
+          source: "",
           icon: Stethoscope,
         });
       }
@@ -255,7 +292,7 @@ function Recommendation() {
             description:
               "This action was suggested during the latest Smart Paw AI health assessment.",
             action: step,
-            source: "Latest AI Health Check",
+            source: "",
             icon: Target,
           });
         });
@@ -574,20 +611,24 @@ function Recommendation() {
     return result;
   }, [currentPet, latestHealthCheck]);
 
+  const visibleRecommendations = recommendations.filter(
+    (recommendation) => !dismissedRecommendations.includes(getRecommendationKey(recommendation)),
+  );
+
   const filteredRecommendations =
     selectedCategory === "All"
-      ? recommendations
-      : recommendations.filter(
+      ? visibleRecommendations
+      : visibleRecommendations.filter(
           (recommendation) =>
             recommendation.category ===
             selectedCategory,
         );
 
-  const urgentCount = recommendations.filter(
+  const urgentCount = visibleRecommendations.filter(
     (item) => item.priority === "URGENT",
   ).length;
 
-  const attentionCount = recommendations.filter(
+  const attentionCount = visibleRecommendations.filter(
     (item) => item.priority === "ATTENTION",
   ).length;
 
@@ -778,7 +819,7 @@ function Recommendation() {
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-xl border border-white/70 bg-white/80 px-4 py-3 text-center dark:border-slate-700 dark:bg-[#18212b]/80">
                 <p className="text-base font-bold text-slate-900 sm:text-lg dark:text-white">
-                  {recommendations.length}
+                  {visibleRecommendations.length}
                 </p>
                 <p className="text-[10px] font-semibold text-slate-400">
                   Total
@@ -817,10 +858,6 @@ function Recommendation() {
 
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-bold">
-                      Latest AI Health Check
-                    </h3>
-
                     <span className="rounded-full bg-orange-500/10 px-2.5 py-1 text-[10px] font-bold text-orange-600 dark:text-orange-400">
                       PERSONALIZED
                     </span>
@@ -1093,9 +1130,22 @@ function Recommendation() {
                             <Icon size={20} />
                           </div>
 
-                          <span className="max-w-[55%] break-words rounded-full bg-slate-100 px-2.5 py-1 text-right text-[10px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                            {recommendation.source}
-                          </span>
+                          <div className="flex items-start gap-2">
+                            {recommendation.source && (
+                              <span className="max-w-[55%] break-words rounded-full bg-slate-100 px-2.5 py-1 text-right text-[10px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                {recommendation.source}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => dismissRecommendation(recommendation)}
+                              aria-label={`Delete recommendation: ${recommendation.title}`}
+                              title="Delete recommendation"
+                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </div>
 
                         <h3 className="mt-4 break-words text-base font-bold leading-6 text-slate-900 dark:text-white sm:mt-5">
@@ -1131,8 +1181,9 @@ function Recommendation() {
                             className="text-emerald-500"
                           />
 
-                          Personalized from{" "}
-                          {recommendation.source.toLowerCase()}
+                          {recommendation.source
+                            ? `Personalized from ${recommendation.source.toLowerCase()}`
+                            : "Personalized recommendation"}
                         </div>
                       </div>
                     </article>
